@@ -83,5 +83,6 @@
   "PROFILE_DELETE_DESC_SUFFIX": "? This action cannot be undone.",
   "PROFILE_DELETE_BTN": "Delete",
   "PROFILE_CANNOT_RENAME_TITLE": "Cannot rename default profile",
-  "PROFILE_CANNOT_RENAME_MSG": "The default profile cannot be renamed"
+  "PROFILE_CANNOT_RENAME_MSG": "The default profile cannot be renamed",
+  "CONFIG_TARGET_FPS": "Target FPS"
 }

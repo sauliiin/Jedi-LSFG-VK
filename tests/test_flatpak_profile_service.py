@@ -20,7 +20,7 @@ from lsfg_vk.flatpak_profile_service import FlatpakProfileService
 class FakeFlatpakService:
     def __init__(self, home: Path):
         self.user_home = home
-        self.config_dir = home / ".config/lsfg-vk"
+        self.config_dir = home / ".config/jedi-lsfg-vk"
         self.config_file_path = self.config_dir / "conf.toml"
         self.state = {"version": 2, "plugin_owned_branches": [], "prepared_apps": {}}
         self.commands = []
@@ -56,8 +56,8 @@ class FakeFlatpakService:
         self._write_file(
             self._override_path(app_id),
             "[Context]\nfilesystems=/config:ro;/dll:ro;\n"
-            "unset-environment=DISABLE_LSFGVK;DISABLE_LSFG;\n"
-            "[Environment]\nLSFGVK_CONFIG=/config/conf.toml\nLSFGVK_FLATPAK=1\n",
+            "unset-environment=ENABLE_GAMESCOPE_WSI;\n"
+            "[Environment]\nMAKO_CONFIG=/config/conf.toml\nENABLE_MAKO=1\n",
         )
         return {
             "success": True,
@@ -144,10 +144,10 @@ class FlatpakProfileServiceTests(unittest.TestCase):
         self.assertTrue(result["success"])
         self.assertTrue(config["exists"])
         self.assertEqual(config["profile"], "flatpak:org.example.Game")
-        self.assertEqual(config["config"]["active_in"], [])
-        self.assertIn("LSFGVK_PROFILE=flatpak:org.example.Game", content)
-        self.assertIn("ENABLE_GAMESCOPE_WSI=0", content)
-        self.assertIn("DXVK_HDR=0", content)
+        self.assertEqual(config["config"]["target_fps"], 60)
+        self.assertIn("MAKO_PROFILE=flatpak:org.example.Game", content)
+        self.assertIn("ENABLE_MAKO=1", content)
+        self.assertNotIn("SteamDeck=0", content)
 
     def test_workaround_update_rebuilds_from_clean_override(self):
         self.flatpak._write_file(
@@ -157,28 +157,30 @@ class FlatpakProfileServiceTests(unittest.TestCase):
         self.assertTrue(self.service.enable_app(self.app_id)["success"])
 
         state = self.service.default_state()
-        state.update({"dxvkFrameRate": 30, "disableHdr": False, "enableZink": True})
+        state.update({"dxvkFrameRate": 30, "disableSteamdeckMode": True, "enableZink": True})
         result = self.service.set_workaround_state(self.app_id, state)
         command = next(
             args for args in reversed(self.flatpak.commands)
-            if args[0] == "override" and any(item.startswith("--env=LSFGVK_PROFILE=") for item in args)
+            if args[0] == "override" and any(item.startswith("--env=MAKO_PROFILE=") for item in args)
         )
 
         self.assertTrue(result["success"])
-        self.assertIn("--env=DXVK_CONFIG=dxvk.maxFrameRate = 30", command)
-        self.assertNotIn("dxgi.syncInterval", " ".join(command))
-        self.assertNotIn("--env=DXVK_HDR=0", command)
+        # MAKO's half-target base cap replaces the DXVK frame cap.
+        self.assertNotIn("DXVK_CONFIG", " ".join(command))
+        self.assertIn("--env=SteamDeck=0", command)
         self.assertIn("--env=MESA_LOADER_DRIVER_OVERRIDE=zink", command)
+        content = self.flatpak._override_path(self.app_id).read_text(encoding="utf-8")
+        self.assertNotIn("dxgi.syncInterval", content)
 
     def test_config_update_returns_without_relisting_flatpaks(self):
         self.assertTrue(self.service.enable_app(self.app_id)["success"])
         self.service.get_app = Mock(side_effect=AssertionError("config updates must not relist Flatpaks"))
 
-        result = self.service.update_config(self.app_id, {"multiplier": 4})
+        result = self.service.update_config(self.app_id, {"target_fps": 120})
 
         self.assertTrue(result["success"])
         self.assertEqual(result["app_id"], self.app_id)
-        self.assertEqual(result["config"]["multiplier"], 4)
+        self.assertEqual(result["config"]["target_fps"], 120)
         self.service.get_app.assert_not_called()
 
     def test_remove_resets_override_and_profile(self):

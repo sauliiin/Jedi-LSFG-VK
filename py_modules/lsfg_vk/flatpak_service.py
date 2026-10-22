@@ -1,24 +1,35 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import pwd
 import re
 import shutil
 import subprocess
+import tarfile
+import tempfile
 import threading
 from pathlib import Path
 from typing import Dict, Optional, Set
 
 from .base_service import BaseService
+from .constants import (
+    COMPETING_LSFG_DISABLE_ENVS,
+    FLATPAK_BUNDLE_ARCHIVE,
+    FLATPAK_BUNDLE_SHA256,
+    FLATPAK_BUNDLE_URL,
+)
 
 
 class FlatpakService(BaseService):
-    EXTENSION_ID = "org.freedesktop.Platform.VulkanLayer.lsfgvk"
-    FLATHUB_REMOTE = "flathub"
-    SUPPORTED_RUNTIMES = ("24.08", "25.08")
+    EXTENSION_ID = "org.freedesktop.Platform.VulkanLayer.makorender"
+    EXTENSION_PREFIX = "/usr/lib/extensions/vulkan/makorender"
+    IMPLICIT_LAYER_DIR = f"{EXTENSION_PREFIX}/share/vulkan/implicit_layer.d"
+    SUPPORTED_RUNTIMES = ("23.08", "24.08", "25.08", "26.08")
     DERIVED_RUNTIME_IDS = {"org.gnome.Platform", "org.kde.Platform"}
-    RUNTIME_METADATA_SECTION = "Extension org.freedesktop.Platform.GL"
+    RUNTIME_METADATA_SECTION = "Extension org.freedesktop.Platform.VulkanLayer"
+    DOWNLOAD_TIMEOUT_SECONDS = 900
     OWNERSHIP_FILENAME = "flatpak_state.json"
     OWNERSHIP_VERSION = 2
     APP_ID_PATTERN = re.compile(
@@ -34,6 +45,10 @@ class FlatpakService(BaseService):
     @property
     def ownership_path(self) -> Path:
         return self.config_dir / self.OWNERSHIP_FILENAME
+
+    @property
+    def bundle_cache_dir(self) -> Path:
+        return self.user_home / ".cache/jedi-lsfg-vk"
 
     def _clean_env(self) -> Dict[str, str]:
         env = os.environ.copy()
@@ -102,7 +117,7 @@ class FlatpakService(BaseService):
             if section != cls.RUNTIME_METADATA_SECTION:
                 continue
             key, separator, value = line.partition("=")
-            if separator and key.strip() == "versions":
+            if separator and key.strip() in ("version", "versions"):
                 versions.extend(part.strip() for part in value.split(";"))
         for value in versions:
             for branch in cls.SUPPORTED_RUNTIMES:
@@ -130,13 +145,67 @@ class FlatpakService(BaseService):
                     installed.add(fields[2])
         return installed
 
-    def _user_extension_origin(self, branch: str) -> str:
-        result = self._run_flatpak_command(
-            ["info", "--user", "--show-origin", self._extension_ref(branch)],
-            capture_output=True,
-            text=True,
-        )
-        return result.stdout.strip() if result.returncode == 0 else ""
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def _bundle_archive(self) -> Path:
+        """Download MAKO's Flatpak bundles once, only when a Flatpak is enabled."""
+        archive = self.bundle_cache_dir / FLATPAK_BUNDLE_ARCHIVE
+        if archive.is_file() and self._sha256(archive) == FLATPAK_BUNDLE_SHA256:
+            return archive
+        self.bundle_cache_dir.mkdir(parents=True, exist_ok=True)
+        partial = archive.with_name(archive.name + ".part")
+        env = self._clean_env()
+        curl = shutil.which("curl", path=env["PATH"])
+        if curl is None:
+            raise FileNotFoundError("curl is required to download the MAKO Flatpak extension")
+        try:
+            result = subprocess.run(
+                [curl, "-fsSL", "--retry", "3", "-o", str(partial), FLATPAK_BUNDLE_URL],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=self.DOWNLOAD_TIMEOUT_SECONDS,
+                check=False,
+            )
+            if result.returncode != 0:
+                raise OSError(result.stderr.strip() or "Could not download the MAKO Flatpak extension")
+            if self._sha256(partial) != FLATPAK_BUNDLE_SHA256:
+                raise OSError("Downloaded MAKO Flatpak extension failed checksum verification")
+            os.replace(partial, archive)
+        finally:
+            partial.unlink(missing_ok=True)
+        return archive
+
+    def _install_bundle(self, branch: str) -> None:
+        member_name = f"{self.EXTENSION_ID}-{branch}.flatpak"
+        with tempfile.TemporaryDirectory(prefix="jedi-lsfg-flatpak-") as staging:
+            bundle = Path(staging) / member_name
+            with tarfile.open(self._bundle_archive(), "r:*") as archive:
+                member = next(
+                    (item for item in archive.getmembers() if item.name.removeprefix("./") == member_name),
+                    None,
+                )
+                source = archive.extractfile(member) if member is not None and member.isfile() else None
+                if source is None:
+                    raise OSError(f"MAKO Flatpak bundle for runtime {branch} is missing")
+                with source, bundle.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+            result = self._run_flatpak_command(
+                ["install", "--user", "--noninteractive", str(bundle)],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                raise OSError(result.stderr.strip() or "Flatpak installation failed")
+
+    def remove_bundle_cache(self) -> None:
+        shutil.rmtree(self.bundle_cache_dir, ignore_errors=True)
 
     def _empty_state(self) -> Dict[str, object]:
         return {
@@ -291,7 +360,6 @@ class FlatpakService(BaseService):
         output = result.stdout if result.returncode == 0 else ""
         section = None
         filesystems = ""
-        unset_environment = set()
         environment = {}
         for raw_line in output.splitlines():
             line = raw_line.strip()
@@ -303,17 +371,15 @@ class FlatpakService(BaseService):
                 continue
             if section == "Context" and key == "filesystems":
                 filesystems = value
-            elif section == "Context" and key == "unset-environment":
-                unset_environment.update(item for item in value.split(";") if item)
             elif section == "Environment":
                 environment[key] = value
         config_ready = self._filesystem_present(filesystems, self.config_dir)
         dll_ready = self._filesystem_present(filesystems, self._dll_directory())
         env_ready = (
-            environment.get("LSFGVK_CONFIG") == str(self.config_file_path)
-            and environment.get("LSFGVK_FLATPAK") == "1"
-            and "DISABLE_LSFGVK" in unset_environment
-            and "DISABLE_LSFG" in unset_environment
+            environment.get("MAKO_CONFIG") == str(self.config_file_path)
+            and environment.get("ENABLE_MAKO") == "1"
+            and environment.get("VK_IMPLICIT_LAYER_PATH") == self.IMPLICIT_LAYER_DIR
+            and all(environment.get(name) == "1" for name in COMPETING_LSFG_DISABLE_ENVS)
         )
         return {
             "filesystem_ready": config_ready and dll_ready,
@@ -353,36 +419,16 @@ class FlatpakService(BaseService):
             with self._lock:
                 if branch in self._verified_branches:
                     return self._extension_result(branch, True, False, "is ready")
-                user_installed = self._installed_extension_branches("user")
-                system_installed = self._installed_extension_branches("system")
-                if branch in system_installed and branch not in user_installed:
-                    return self._extension_result(branch, True, False, "is ready")
-                if branch in user_installed and self._user_extension_origin(branch) != self.FLATHUB_REMOTE:
-                    result = self._run_flatpak_command(
-                        ["uninstall", "--user", "--noninteractive", self._extension_ref(branch)],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode != 0:
-                        raise OSError(result.stderr.strip() or "Could not replace the existing Flatpak extension")
-                result = self._run_flatpak_command(
-                    [
-                        "install",
-                        "--user",
-                        "--noninteractive",
-                        "--or-update",
-                        self.FLATHUB_REMOTE,
-                        f"{self.EXTENSION_ID}//{branch}",
-                    ],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode != 0:
-                    raise OSError(result.stderr.strip() or "Flatpak installation failed")
-                if branch not in self._installed_extension_branches("user"):
-                    raise RuntimeError(f"Flatpak install completed but {self._extension_ref(branch)} was not visible afterwards")
                 state = self._read_state()
                 owned = self._owned_branches(state)
+                if branch in self._installed_extension_branches():
+                    # Either ours from an earlier session or shared with MAKO
+                    # Decky or a manual setup; ownership is left as recorded.
+                    self._verified_branches.add(branch)
+                    return self._extension_result(branch, True, False, "is ready")
+                self._install_bundle(branch)
+                if branch not in self._installed_extension_branches("user"):
+                    raise RuntimeError(f"Flatpak install completed but {self._extension_ref(branch)} was not visible afterwards")
                 owned.add(branch)
                 state["plugin_owned_branches"] = sorted(owned)
                 self._write_state(state)
@@ -406,7 +452,7 @@ class FlatpakService(BaseService):
     def _extension_result(self, branch: str, installed: bool, removed: bool, verb: str):
         return self._success_response(
             dict,
-            f"lsfg-vk {branch} runtime extension {verb}",
+            f"MAKO Renderer {branch} runtime extension {verb}",
             runtime_branch=branch,
             installed=installed,
             enabled=installed,
@@ -502,16 +548,26 @@ class FlatpakService(BaseService):
                 if app_id not in apps:
                     self._reset_app_override(app_id)
                     apps[app_id] = {}
+                # Inside the sandbox there is no mako-launch, so the override
+                # reproduces its launch boundary: MAKO is the only frame
+                # generation layer, loaded from its private manifest directory.
                 result = self._run_flatpak_command(
                     [
                         "override",
                         "--user",
-                        f"--filesystem={self.config_dir}:ro",
+                        f"--filesystem={self.config_dir}:rw",
                         f"--filesystem={self._dll_directory()}:ro",
-                        f"--env=LSFGVK_CONFIG={self.config_file_path}",
-                        "--env=LSFGVK_FLATPAK=1",
-                        "--unset-env=DISABLE_LSFGVK",
-                        "--unset-env=DISABLE_LSFG",
+                        f"--env=MAKO_CONFIG={self.config_file_path}",
+                        "--env=ENABLE_MAKO=1",
+                        *(f"--env={name}=1" for name in COMPETING_LSFG_DISABLE_ENVS),
+                        "--env=DISABLE_GAMESCOPE_WSI=1",
+                        "--unset-env=ENABLE_GAMESCOPE_WSI",
+                        "--env=MAKO_DISABLE_HDR_EXPOSURE=1",
+                        "--unset-env=DXVK_HDR",
+                        "--env=DISABLE_VKBASALT=1",
+                        "--unset-env=ENABLE_VKBASALT",
+                        f"--env=VK_IMPLICIT_LAYER_PATH={self.IMPLICIT_LAYER_DIR}",
+                        "--unset-env=VK_ADD_IMPLICIT_LAYER_PATH",
                         app_id,
                     ],
                     capture_output=True,
@@ -524,7 +580,7 @@ class FlatpakService(BaseService):
                 self._write_state(state)
                 return self._success_response(
                     dict,
-                    "Flatpak application prepared for lsfg-vk",
+                    "Flatpak application prepared for MAKO Renderer",
                     app_id=app_id,
                     runtime=runtime,
                     runtime_branch=branch,

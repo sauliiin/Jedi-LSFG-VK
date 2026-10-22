@@ -1,8 +1,8 @@
 """
-lsfg-vk plugin package for Decky Loader.
+Jedi LSFG-VK plugin package for Decky Loader.
 
-This package provides services for installing and managing the lsfg-vk 
-Vulkan layer for Lossless Scaling frame generation.
+This package installs MAKO Renderer and manages its Adaptive Frame Generation
+profiles for Lossless Scaling, driven by a single target FPS per game.
 """
 
 try:
@@ -10,4 +10,3 @@ try:
     __all__ = ['Plugin']
 except ImportError:
     __all__ = []
-

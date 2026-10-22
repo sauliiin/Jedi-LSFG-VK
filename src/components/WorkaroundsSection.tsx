@@ -1,4 +1,4 @@
-import { ButtonItem, Field, PanelSectionRow, SliderField, ToggleField } from "@decky/ui";
+import { ButtonItem, Field, PanelSectionRow, ToggleField } from "@decky/ui";
 import { useEffect, useState } from "react";
 import { RiArrowDownSFill, RiArrowUpSFill } from "react-icons/ri";
 import { usePerAppWorkarounds } from "../hooks/usePerAppWorkarounds";
@@ -14,6 +14,9 @@ interface WorkaroundsSectionProps {
 const WORKAROUNDS_COLLAPSED_KEY = "lsfg-workarounds-collapsed-v2";
 type ToggleWorkaroundField = Exclude<WorkaroundField, "dxvkFrameRate">;
 
+// Gamescope WSI, HDR exposure and vkBasalt are owned by mako-launch, and the
+// DXVK frame cap would fight the half-target base cap, so only settings that
+// still change the launch environment are offered here.
 const TOGGLE_ROWS: readonly {
   field: ToggleWorkaroundField;
   labelKey: string;
@@ -27,27 +30,6 @@ const TOGGLE_ROWS: readonly {
     label: "Disable Steam Deck Mode",
     descriptionKey: "CONFIG_DISABLE_STEAMDECK_MODE_DESC",
     description: "Disables a game-specific Steam Deck compatibility switch. Requires game restart to apply.",
-  },
-  {
-    field: "disableGamescopeWsi",
-    labelKey: "CONFIG_DISABLE_GAMESCOPE_WSI",
-    label: "Disable Gamescope WSI",
-    descriptionKey: "CONFIG_DISABLE_GAMESCOPE_WSI_DESC",
-    description: "Adds ENABLE_GAMESCOPE_WSI=0. Requires game restart to apply.",
-  },
-  {
-    field: "disableHdr",
-    labelKey: "CONFIG_DISABLE_HDR",
-    label: "Disable HDR",
-    descriptionKey: "CONFIG_DISABLE_HDR_DESC",
-    description: "Prevents DXVK from exposing HDR to the game. Requires game restart to apply.",
-  },
-  {
-    field: "disableVkbasalt",
-    labelKey: "CONFIG_DISABLE_VKBASALT",
-    label: "Disable vkBasalt",
-    descriptionKey: "CONFIG_DISABLE_VKBASALT_DESC",
-    description: "Disables vkBasalt layer which can conflict with LSFG (Reshade, some Decky plugins)",
   },
   {
     field: "enableZink",
@@ -83,11 +65,6 @@ export function WorkaroundsSection({ appId, nonSteam, onRepair }: WorkaroundsSec
   const [repairing, setRepairing] = useState(false);
   const state = snapshot?.state;
   const controlsDisabled = status !== "ready" || state === undefined || snapshot?.wrapperOwned !== true || snapshot.integrationInstalled !== true;
-  const [fpsValue, setFpsValue] = useState<number | null>(null);
-  const effectiveFpsValue = fpsValue ?? state?.dxvkFrameRate ?? 0;
-  const fpsLabel = effectiveFpsValue > 0
-    ? `${effectiveFpsValue} FPS`
-    : t("CONFIG_BASE_FPS_CAP_OFF", "Off");
 
   const handleRepair = async () => {
     if (!onRepair || repairing) return;
@@ -98,10 +75,6 @@ export function WorkaroundsSection({ appId, nonSteam, onRepair }: WorkaroundsSec
       setRepairing(false);
     }
   };
-
-  useEffect(() => {
-    setFpsValue(state?.dxvkFrameRate ?? null);
-  }, [state?.dxvkFrameRate, status]);
 
   return (
     <>
@@ -179,21 +152,6 @@ export function WorkaroundsSection({ appId, nonSteam, onRepair }: WorkaroundsSec
             </>
           )}
 
-          <PanelSectionRow>
-            <SliderField
-              label={`${t("CONFIG_BASE_FPS_CAP", "Base FPS Cap")} (${fpsLabel})`}
-              description={t("CONFIG_BASE_FPS_CAP_DESC", "Base cap for DXVK-backed games before frame generation; 0 disables. Requires game restart to apply.")}
-              value={effectiveFpsValue}
-              min={0}
-              max={60}
-              step={1}
-              onChange={(value) => {
-                setFpsValue(value);
-                void update("dxvkFrameRate", value);
-              }}
-              disabled={controlsDisabled}
-            />
-          </PanelSectionRow>
           {TOGGLE_ROWS.map((row) => (
             <PanelSectionRow key={row.field}>
               <ToggleField

@@ -46,7 +46,7 @@ export function mergeGameTargets(
     const source = getTargetSource(game.appid, installedGames, workaroundApps);
     targets.push({
       appid: game.appid,
-      name: game.profile || `App ${game.appid}`,
+      name: `App ${game.appid}`,
       nonSteam: source === "nonSteam",
       source,
       configured: true,

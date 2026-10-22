@@ -1,5 +1,4 @@
 import { DialogButton, ModalRoot, showModal } from "@decky/ui";
-import branchSetupGif from "../../assets/lsfg-vk-branch-setup.gif";
 
 export function showBranchSetupModal() {
   let closeModal = () => {};
@@ -21,26 +20,17 @@ export function showBranchSetupModal() {
         }}
       >
         <div style={{ fontSize: "20px", fontWeight: 600, marginBottom: "8px" }}>
-          Switch Lossless Scaling to the lsfg-vk branch
+          Switch Lossless Scaling to the default branch
         </div>
-        <img
-          src={branchSetupGif}
-          alt="Steam steps for selecting the lsfg-vk branch"
-          style={{
-            display: "block",
-            width: "100%",
-            maxWidth: "100%",
-            height: "auto",
-            boxSizing: "border-box",
-            borderRadius: "4px",
-            background: "#101418",
-          }}
-        />
+        <div style={{ lineHeight: 1.5 }}>
+          MAKO Renderer reads Lossless.dll from the default public version of Lossless Scaling.
+          Beta branches, including lsfg-vk, are not validated.
+        </div>
         <ol style={{ lineHeight: 1.5, margin: "14px 0 18px", paddingLeft: "24px" }}>
           <li>Open Lossless Scaling in your Steam library.</li>
           <li>Open Properties, then Game Versions &amp; Betas.</li>
-          <li>Select the <strong>lsfg-vk</strong> branch.</li>
-          <li>Wait for Steam to finish the update and reopen Decky LSFG-VK.</li>
+          <li>Select <strong>None</strong> (the default public branch).</li>
+          <li>Wait for Steam to finish the update and reopen Jedi LSFG-VK.</li>
         </ol>
         <DialogButton
           onClick={() => closeModal()}
@@ -52,7 +42,7 @@ export function showBranchSetupModal() {
     </ModalRoot>,
     undefined,
     {
-      strTitle: "Finish LSFG-VK setup",
+      strTitle: "Finish Jedi LSFG-VK setup",
       bNeverPopOut: true,
       popupWidth: 980,
       popupHeight: 760,

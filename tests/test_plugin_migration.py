@@ -39,23 +39,6 @@ class PluginMigrationTests(unittest.TestCase):
         else:
             sys.modules["lsfg_vk.plugin"] = previous_plugin
 
-    def test_migration_only_runs_decky_path_migrations(self):
-        Plugin, decky, previous_decky, previous_tomllib, previous_plugin = self._load_plugin()
-        try:
-            plugin = Plugin.__new__(Plugin)
-            plugin.installation_service = Mock()
-            plugin.flatpak_service = Mock()
-
-            asyncio.run(plugin._migration())
-
-            decky.migrate_logs.assert_called_once()
-            decky.migrate_settings.assert_called_once()
-            decky.migrate_runtime.assert_called_once()
-            plugin.installation_service.install.assert_not_called()
-            plugin.flatpak_service.prepare_app.assert_not_called()
-        finally:
-            self._restore(previous_decky, previous_tomllib, previous_plugin)
-
     def test_uninstall_cleans_owned_flatpak_state_and_profiles(self):
         Plugin, _decky, previous_decky, previous_tomllib, previous_plugin = self._load_plugin()
         try:
@@ -74,6 +57,7 @@ class PluginMigrationTests(unittest.TestCase):
             plugin.configuration_service.reset_all_flatpak_configs.assert_called_once_with()
             plugin.wrapper_service.neutralize.assert_called_once_with()
             plugin.wrapper_service.purge.assert_not_called()
+            plugin.flatpak_service.remove_bundle_cache.assert_called_once_with()
             plugin.installation_service.cleanup_on_uninstall.assert_called_once_with()
         finally:
             self._restore(previous_decky, previous_tomllib, previous_plugin)

@@ -38,13 +38,13 @@ export function useInstallation(
       setIsInstalled(status.installed);
       setLosslessScalingInstalled(status.lossless_scaling_installed);
       setLosslessScalingStatus(status.lossless_scaling_status || "Lossless Scaling Not Installed");
-      setInstallationStatus(status.installed ? "lsfg-vk Installed" : "lsfg-vk Not Installed");
+      setInstallationStatus(status.installed ? "MAKO Renderer Installed" : "MAKO Renderer Not Installed");
       return status.installed;
     } catch {
       setSteamBranchStatus(null);
       setLosslessScalingInstalled(false);
       setLosslessScalingStatus("Lossless Scaling Not Installed");
-      setInstallationStatus("lsfg-vk Not Installed");
+      setInstallationStatus("MAKO Renderer Not Installed");
       return false;
     }
   }, []);
@@ -72,7 +72,7 @@ export function useInstallation(
 
   const install = async () => {
     setIsInstalling(true);
-    setInstallationStatus("Installing lsfg-vk...");
+    setInstallationStatus("Installing MAKO Renderer...");
     try {
       const result = await installLsfgVk();
       if (!result.success) {
@@ -80,7 +80,7 @@ export function useInstallation(
         showInstallErrorToast(result.error ?? undefined);
         return;
       }
-      setInstallationStatus("lsfg-vk installed");
+      setInstallationStatus("MAKO Renderer installed");
       showInstallSuccessToast();
       await reloadConfig?.();
       await checkInstallation();
@@ -94,7 +94,7 @@ export function useInstallation(
 
   const uninstall = async () => {
     setIsUninstalling(true);
-    setInstallationStatus("Uninstalling lsfg-vk...");
+    setInstallationStatus("Uninstalling MAKO Renderer...");
     try {
       if (beforeUninstall && !(await beforeUninstall())) {
         setInstallationStatus("Uninstallation cancelled: could not clean up launch options");
@@ -107,7 +107,7 @@ export function useInstallation(
         return;
       }
       setIsInstalled(false);
-      setInstallationStatus("lsfg-vk uninstalled successfully!");
+      setInstallationStatus("MAKO Renderer uninstalled successfully!");
       await checkInstallation();
       showUninstallSuccessToast();
     } catch (error) {

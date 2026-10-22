@@ -3,7 +3,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 sys.modules.setdefault(
@@ -22,23 +22,13 @@ class InstallationConfigTests(unittest.TestCase):
         self.home = Path(self.tempdir.name) / "home" / "deck"
         self.home.mkdir(parents=True)
         self.steam = Mock()
-        self.steam.find_lsfg_vk_dll.return_value = None
-        self.service = InstallationService(
-            logger=Mock(),
-            runtime_service=Mock(),
-            steam_service=self.steam,
-        )
-        self.service.user_home = self.home
-        self.service.local_bin_dir = self.home / ".local/bin"
-        self.service.local_lib_dir = self.home / ".local/lib"
-        self.service.local_share_dir = self.home / ".local/share/vulkan/implicit_layer.d"
-        self.service.config_dir = self.home / ".config/lsfg-vk"
-        self.service.config_file_path = self.service.config_dir / "conf.toml"
-        self.service.cli_file = self.service.local_bin_dir / "lsfg-vk-cli"
-        self.service.lib_file = self.service.local_lib_dir / "liblsfg-vk-layer.so"
-        self.service.lib_x86_file = self.service.local_lib_dir / "liblsfg-vk-layer.x86.so"
-        self.service.json_file = self.service.local_share_dir / "VkLayer_LSFGVK_frame_generation.json"
-        self.service.json_x86_file = self.service.local_share_dir / "VkLayer_LSFGVK_frame_generation.x86.json"
+        self.steam.find_lossless_dll.return_value = None
+        with patch("lsfg_vk.base_service.decky", types.SimpleNamespace(DECKY_USER_HOME=str(self.home), logger=Mock())):
+            self.service = InstallationService(
+                logger=Mock(),
+                runtime_service=Mock(),
+                steam_service=self.steam,
+            )
 
     def tearDown(self):
         self.tempdir.cleanup()
@@ -47,21 +37,14 @@ class InstallationConfigTests(unittest.TestCase):
         self.service.config_dir.mkdir(parents=True, exist_ok=True)
         self.service.config_file_path.write_text(
             ConfigurationManager.generate_toml_content_multi_profile({
-                "profiles": {"Test game": {"active_in": ["123"]}},
+                "profiles": {"app:123": {"target_fps": 90}},
                 "global_config": {"dll": dll, "no_fp16": False},
             }),
             encoding="utf-8",
         )
 
     def _mark_installed(self):
-        for path in (
-            self.service.cli_file,
-            self.service.lib_file,
-            self.service.lib_x86_file,
-            self.service.json_file,
-            self.service.json_x86_file,
-            self.service.config_file_path,
-        ):
+        for path in (*self.service._renderer_files(), self.service.config_file_path):
             path.parent.mkdir(parents=True, exist_ok=True)
             if not path.exists():
                 path.write_text("installed", encoding="utf-8")
@@ -90,14 +73,14 @@ class InstallationConfigTests(unittest.TestCase):
 
         self.assertEqual(self.service.config_file_path.read_text(encoding="utf-8"), original)
 
-    def test_check_installation_repairs_dll_path_after_branch_becomes_available(self):
-        dll_path = self.home / "steamapps/common/Lossless Scaling/lsfg-vk.dll"
+    def test_check_installation_repairs_dll_path_once_lossless_dll_is_available(self):
+        dll_path = self.home / "steamapps/common/Lossless Scaling/Lossless.dll"
         dll_path.parent.mkdir(parents=True)
         dll_path.write_text("dll", encoding="utf-8")
-        self.steam.find_lsfg_vk_dll.return_value = str(dll_path)
+        self.steam.find_lossless_dll.return_value = str(dll_path)
         self.service.runtime_service.check_lossless_scaling.return_value = {
             "installed": True,
-            "status": "Lossless Scaling detected by lsfg-vk",
+            "status": "Lossless Scaling detected",
         }
         self._write_config()
         self._mark_installed()
@@ -110,13 +93,13 @@ class InstallationConfigTests(unittest.TestCase):
             self.service.config_file_path.read_text(encoding="utf-8")
         )
         self.assertEqual(data["global_config"]["dll"], str(dll_path))
-        self.assertEqual(data["profiles"]["Test game"]["active_in"], ["123"])
+        self.assertEqual(data["profiles"]["app:123"]["target_fps"], 90)
         self.service.runtime_service.validate_config_content.assert_called_once()
 
-    def test_check_installation_does_not_write_dll_path_on_wrong_branch(self):
+    def test_check_installation_does_not_write_dll_path_when_dll_is_missing(self):
         self.service.runtime_service.check_lossless_scaling.return_value = {
             "installed": False,
-            "status": "Lossless Scaling's lsfg-vk.dll is not configured",
+            "status": "Lossless Scaling's Lossless.dll was not found",
         }
         self._write_config()
         self._mark_installed()
@@ -130,6 +113,45 @@ class InstallationConfigTests(unittest.TestCase):
         )
         self.assertEqual(data["global_config"]["dll"], "")
         self.service.runtime_service.validate_config_content.assert_not_called()
+
+    def test_install_does_not_claim_a_preexisting_renderer(self):
+        self.service.archive_path = self.home / "renderer.tar.xz"
+        self.service.archive_path.write_text("archive", encoding="utf-8")
+        self._mark_installed()
+        self.service.config_file_path.unlink()
+
+        with patch.object(self.service, "_install_renderer"):
+            result = self.service.install()
+
+        self.assertTrue(result["success"], result)
+        self.assertFalse(self.service._installed_by_plugin())
+        self.assertTrue(self.service.config_file_path.is_file())
+
+    def test_install_claims_a_new_renderer(self):
+        self.service.archive_path = self.home / "renderer.tar.xz"
+        self.service.archive_path.write_text("archive", encoding="utf-8")
+
+        with patch.object(self.service, "_install_renderer"):
+            result = self.service.install()
+
+        self.assertTrue(result["success"], result)
+        self.assertTrue(self.service._installed_by_plugin())
+
+    def test_archive_with_link_or_parent_path_is_rejected(self):
+        import io
+        import tarfile
+
+        for name, kind in (("../escape", tarfile.REGTYPE), ("link", tarfile.SYMTYPE)):
+            buffer = io.BytesIO()
+            with tarfile.open(fileobj=buffer, mode="w") as archive:
+                member = tarfile.TarInfo(name)
+                member.type = kind
+                member.linkname = "/etc/passwd" if kind == tarfile.SYMTYPE else ""
+                archive.addfile(member, io.BytesIO(b""))
+            buffer.seek(0)
+            with self.subTest(name=name), tarfile.open(fileobj=buffer) as archive:
+                with self.assertRaises(ValueError):
+                    InstallationService._safe_members(archive)
 
 
 if __name__ == "__main__":

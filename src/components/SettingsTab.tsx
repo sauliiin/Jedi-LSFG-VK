@@ -42,14 +42,14 @@ export function SettingsTab(props: SettingsTabProps) {
     setupIncomplete && steamBranchStatus?.installed && steamBranchStatus.needs_switch,
   );
   const selectedBranch = steamBranchStatus?.selected_branch || "the current";
-  const targetBranch = steamBranchStatus?.target_branch || "lsfg-vk";
+  const targetBranch = steamBranchStatus?.target_branch || "public";
   const buttonLabel = isInstalling
     ? t("INSTALL_INSTALLING", "Installing...")
     : isUninstalling
       ? t("INSTALL_UNINSTALLING", "Uninstalling...")
       : isInstalled
-        ? t("INSTALL_UNINSTALL_BTN", "Uninstall LSFG-VK")
-        : t("INSTALL_INSTALL_BTN", "Install LSFG-VK");
+        ? t("INSTALL_UNINSTALL_BTN", "Uninstall MAKO Renderer")
+        : t("INSTALL_INSTALL_BTN", "Install MAKO Renderer");
 
   return (
     <>
@@ -73,7 +73,7 @@ export function SettingsTab(props: SettingsTabProps) {
                 {branchSetupIncomplete ? (
                   <>Lossless Scaling is on <strong>{selectedBranch}</strong>. Select the <strong>{targetBranch}</strong> branch before launching games.</>
                 ) : (
-                  <>Lossless Scaling is installed, but its LSFG-VK runtime is not ready yet.</>
+                  <>Lossless Scaling is installed, but its Lossless.dll is not ready yet.</>
                 )}
               </div>
               {branchSetupIncomplete && (
@@ -94,7 +94,7 @@ export function SettingsTab(props: SettingsTabProps) {
           />
         </PanelSectionRow>
         <PanelSectionRow>
-          <Field label="LSFG-VK" description={installationStatus} />
+          <Field label="MAKO Renderer" description={installationStatus} />
         </PanelSectionRow>
         {steamBranchStatus?.installed && !setupIncomplete && (
           <PanelSectionRow>

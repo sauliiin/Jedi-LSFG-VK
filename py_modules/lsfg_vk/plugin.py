@@ -1,4 +1,3 @@
-import os
 from typing import Any, Dict
 
 import decky
@@ -44,6 +43,7 @@ class Plugin:
         wrapper = self.wrapper_service.neutralize() if preserve_wrapper else self.wrapper_service.purge()
         if not wrapper.get("success"):
             return wrapper.get("error") or "Could not remove workaround state"
+        self.flatpak_service.remove_bundle_cache()
         return None
 
     async def uninstall_lsfg_vk(self):
@@ -122,7 +122,7 @@ class Plugin:
 
     async def get_debug_file_contents(self):
         files = (
-            ("config", "LSFG-VK configuration", self.configuration_service.config_file_path),
+            ("config", "MAKO Renderer configuration", self.configuration_service.config_file_path),
             ("workarounds", "Per-app workarounds", self.wrapper_service.sidecar_path),
             ("wrapper", "Generated launch wrapper", self.wrapper_service.wrapper_path),
             ("flatpak", "Flatpak ownership state", self.flatpak_service.ownership_path),
@@ -184,39 +184,21 @@ class Plugin:
     async def _main(self):
         repair = self.wrapper_service.repair()
         if not repair.get("success"):
-            decky.logger.error(f"Could not repair lsfg workaround wrapper: {repair.get('error')}")
-        decky.logger.info("decky-lsfg-vk plugin loaded")
+            decky.logger.error(f"Could not repair launch wrapper: {repair.get('error')}")
+        decky.logger.info("Jedi LSFG-VK plugin loaded")
 
     async def _unload(self):
-        decky.logger.info("decky-lsfg-vk plugin unloaded")
+        decky.logger.info("Jedi LSFG-VK plugin unloaded")
 
     async def _uninstall(self):
-        decky.logger.info("decky-lsfg-vk plugin being uninstalled")
+        decky.logger.info("Jedi LSFG-VK plugin being uninstalled")
         try:
             error = self._cleanup_runtime_state(preserve_wrapper=True)
             if error:
-                decky.logger.warning(f"Preserving lsfg-vk files because uninstall cleanup failed: {error}")
+                decky.logger.warning(f"Preserving renderer files because uninstall cleanup failed: {error}")
                 return
         except Exception as error:
-            decky.logger.error(f"Error during lsfg-vk cleanup: {error}")
+            decky.logger.error(f"Error during uninstall cleanup: {error}")
             return
         self.installation_service.cleanup_on_uninstall()
-        decky.logger.info("decky-lsfg-vk plugin uninstall cleanup completed")
-
-    async def _migration(self):
-        decky.logger.info("Running decky-lsfg-vk plugin migrations")
-        decky.migrate_logs(os.path.join(
-            decky.DECKY_USER_HOME,
-            ".config",
-            "decky-lossless-scaling-vk",
-            "lossless-scaling-vk.log",
-        ))
-        decky.migrate_settings(
-            os.path.join(decky.DECKY_HOME, "settings", "lossless-scaling-vk.json"),
-            os.path.join(decky.DECKY_USER_HOME, ".config", "decky-lossless-scaling-vk"),
-        )
-        decky.migrate_runtime(
-            os.path.join(decky.DECKY_HOME, "lossless-scaling-vk"),
-            os.path.join(decky.DECKY_USER_HOME, ".local", "share", "decky-lossless-scaling-vk"),
-        )
-        decky.logger.info("decky-lsfg-vk plugin migrations completed")
+        decky.logger.info("Jedi LSFG-VK plugin uninstall cleanup completed")

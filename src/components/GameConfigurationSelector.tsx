@@ -85,7 +85,7 @@ export function GameConfigurationSelector({
     showModal(
       <ConfirmModal
         strTitle={`Enable all available ${sourceName}?`}
-        strDescription={`Create individual LSFG-VK profiles for every available ${sourceName}. Unknown-source profiles are excluded. Flatpak profiles are managed separately in the Flatpak tab.`}
+        strDescription={`Create individual frame generation profiles for every available ${sourceName}. Unknown-source profiles are excluded. Flatpak profiles are managed separately in the Flatpak tab.`}
         strOKButtonText="Enable all"
         strCancelButtonText="Cancel"
         onOK={() => void onEnableAll(source)}

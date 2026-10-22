@@ -2,8 +2,8 @@
 set -euo pipefail
 
 deck_host="deck@192.168.0.241"
-plugin_root="Decky LSFG-VK"
-install_path="/home/deck/homebrew/plugins/Decky LSFG-VK"
+plugin_root="Jedi LSFG-VK"
+install_path="/home/deck/homebrew/plugins/Jedi LSFG-VK"
 
 if [[ -z ${DEPLOY_EXPECT:-} && -f .env ]]; then
     set -a
@@ -37,8 +37,8 @@ fi
 
 package_dir="$(mktemp -d "${TMPDIR:-/tmp}/decky-plugin-package.XXXXXX")"
 run_id="$(basename "$package_dir")"
-remote_archive="/tmp/decky-lsfg-vk-${run_id}.zip"
-remote_stage="/tmp/decky-lsfg-vk-stage-${run_id}"
+remote_archive="/tmp/jedi-lsfg-vk-${run_id}.zip"
+remote_stage="/tmp/jedi-lsfg-vk-stage-${run_id}"
 trap 'rm -rf -- "$package_dir"' EXIT INT TERM
 
 pnpm build

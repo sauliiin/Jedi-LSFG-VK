@@ -1,9 +1,10 @@
+import json
 import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 sys.modules.setdefault(
@@ -12,51 +13,58 @@ sys.modules.setdefault(
 )
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "py_modules"))
 
-from lsfg_vk.base_service import BaseService
 from lsfg_vk.installation import InstallationService
 
 
 class InstallationCleanupTests(unittest.TestCase):
-    def test_uninstall_removes_legacy_files_and_prunes_only_empty_directories(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary) / "home" / "deck"
-            service = InstallationService.__new__(InstallationService)
-            BaseService.__init__(service)
-            service.log = Mock()
-            service.user_home = home
-            service.local_bin_dir = home / ".local/bin"
-            service.local_lib_dir = home / ".local/lib"
-            service.local_share_dir = home / ".local/share/vulkan/implicit_layer.d"
-            service.config_dir = home / ".config/lsfg-vk"
-            service.config_file_path = service.config_dir / "conf.toml"
-            service.legacy_script_path = home / "lsfg"
-            service.lib_file = service.local_lib_dir / "liblsfg-vk-layer.so"
-            service.lib_x86_file = service.local_lib_dir / "liblsfg-vk-layer.x86.so"
-            service.json_file = service.local_share_dir / "VkLayer_LSFGVK_frame_generation.json"
-            service.json_x86_file = service.local_share_dir / "VkLayer_LSFGVK_frame_generation.x86.json"
-            service.cli_file = service.local_bin_dir / "lsfg-vk-cli"
-            service.legacy_lib_file = service.local_lib_dir / "liblsfg-vk.so"
-            service.legacy_json_file = service.local_share_dir / "VkLayer_LS_frame_generation.json"
+    def setUp(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        home = Path(self.tempdir.name) / "home" / "deck"
+        home.mkdir(parents=True)
+        with patch("lsfg_vk.base_service.decky", types.SimpleNamespace(DECKY_USER_HOME=str(home), logger=Mock())):
+            self.service = InstallationService(logger=Mock(), runtime_service=Mock(), steam_service=Mock())
+        self.home = home
+        self.service.config_dir.mkdir(parents=True)
+        self.service.config_file_path.write_text("version = 2\n", encoding="utf-8")
+        self.service.installer_state_path.parent.mkdir(parents=True)
+        self.service.installer_state_path.write_text("state", encoding="utf-8")
+        self.service.installed_installer_path.parent.mkdir(parents=True)
+        self.service.installed_installer_path.write_text("#!/bin/sh\n", encoding="utf-8")
 
-            for path in (
-                service.lib_file,
-                service.config_file_path,
-                service.legacy_script_path,
-            ):
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("owned", encoding="utf-8")
-            unrelated = home / ".local/bin/keep-me"
-            unrelated.parent.mkdir(parents=True, exist_ok=True)
-            unrelated.write_text("user file", encoding="utf-8")
+    def tearDown(self):
+        self.tempdir.cleanup()
 
-            result = service.uninstall()
+    def _set_ownership(self, installed_renderer):
+        self.service.ownership_path.write_text(
+            json.dumps({"version": 1, "installed_renderer": installed_renderer}),
+            encoding="utf-8",
+        )
 
-            self.assertTrue(result["success"])
-            self.assertFalse(service.lib_file.exists())
-            self.assertFalse(service.config_file_path.exists())
-            self.assertFalse(service.legacy_script_path.exists())
-            self.assertTrue(unrelated.exists())
-            self.assertTrue(service.local_bin_dir.exists())
+    def test_uninstall_removes_renderer_installed_by_plugin(self):
+        self._set_ownership(True)
+        unrelated = self.home / ".local/bin/keep-me"
+        unrelated.write_text("user file", encoding="utf-8")
+
+        with patch.object(self.service, "_run_installer") as run_installer:
+            result = self.service.uninstall()
+
+        self.assertTrue(result["success"])
+        run_installer.assert_called_once_with(self.service.installed_installer_path, "--uninstall")
+        self.assertFalse(self.service.config_file_path.exists())
+        self.assertFalse(self.service.ownership_path.exists())
+        self.assertFalse(self.service.config_dir.exists())
+        self.assertTrue(unrelated.exists())
+
+    def test_uninstall_keeps_shared_renderer(self):
+        self._set_ownership(False)
+
+        with patch.object(self.service, "_run_installer") as run_installer:
+            result = self.service.uninstall()
+
+        self.assertTrue(result["success"])
+        run_installer.assert_not_called()
+        self.assertFalse(self.service.config_file_path.exists())
+        self.assertTrue(self.service.installer_state_path.exists())
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import { PanelSectionRow, ToggleField, SliderField } from "@decky/ui";
 import { ConfigurationData } from "../config/configSchema";
-import { FLOW_SCALE, PERFORMANCE_MODE, OVERRIDE_PRESENT_MODE, PRESERVE_SWAPCHAIN_IMAGE_COUNT } from "../config/configSchema";
+import { FLOW_SCALE, PERFORMANCE_MODE, PRESERVE_SWAPCHAIN_IMAGE_COUNT } from "../config/configSchema";
 
 interface ConfigurationSectionProps {
   config: ConfigurationData;
@@ -14,9 +14,6 @@ export function ConfigurationSection({ config, onConfigChange }: ConfigurationSe
     </PanelSectionRow>
     <PanelSectionRow>
       <ToggleField label="Performance Mode" checked={config.performance_mode} onChange={(value) => onConfigChange(PERFORMANCE_MODE, value)} />
-    </PanelSectionRow>
-    <PanelSectionRow>
-      <ToggleField label="Present Mode Override" checked={config.override_present_mode} onChange={(value) => onConfigChange(OVERRIDE_PRESENT_MODE, value)} />
     </PanelSectionRow>
     <PanelSectionRow>
       <ToggleField label="Preserve Swapchain Image Count" checked={config.preserve_swapchain_image_count} onChange={(value) => onConfigChange(PRESERVE_SWAPCHAIN_IMAGE_COUNT, value)} />

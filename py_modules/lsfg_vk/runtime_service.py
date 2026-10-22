@@ -5,26 +5,19 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .base_service import BaseService
-from .constants import CLI_FILENAME
+from .config_schema import ConfigurationManager
+from .constants import CLI_FILENAME, LOSSLESS_DLL_FILENAME
 
 
 class RuntimeService(BaseService):
     COMMAND_TIMEOUT_SECONDS = 10
     MAX_OUTPUT_LENGTH = 12_000
-    DLL_MISSING_MARKER = "! The DLL file does not exist:"
-    DLL_NONE_MARKER = "DLL override: (none)"
-
-    def __init__(self, logger=None):
-        super().__init__(logger)
-        self.cli_path = self.local_bin_dir / CLI_FILENAME
+    # Variables that would make mako-cli read another profile source.
+    IGNORED_ENVIRONMENT = ("MAKO_CONFIG", "MAKO_ENV", "MAKO_PROFILE", "MAKO_PROFILE_FALLBACK")
 
     def _environment(self) -> dict[str, str]:
-        environment = os.environ.copy()
-        environment.update(
-            HOME=str(self.user_home),
-            XDG_CONFIG_HOME=str(self.user_home / ".config"),
-        )
-        for name in ("LSFGVK_CONFIG", "LSFGVK_ENV"):
+        environment = self._host_environment()
+        for name in self.IGNORED_ENVIRONMENT:
             environment.pop(name, None)
         return environment
 
@@ -72,49 +65,24 @@ class RuntimeService(BaseService):
 
             returncode, output = self._run(("validate", "--config", str(temporary_path)))
             if returncode != 0:
-                raise ValueError(output or "lsfg-vk rejected the generated configuration")
+                raise ValueError(output or "MAKO Renderer rejected the generated configuration")
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
 
-    def is_healthy(self) -> bool:
-        returncode, output = self._run(("healthcheck",))
-        return returncode == 0 and "Healthcheck found issues" not in output
-
     def check_lossless_scaling(self) -> dict[str, Any]:
-        """Report Lossless Scaling state from lsfg-vk's own validator."""
+        """Report whether the configured Lossless.dll is readable."""
         if not self.config_file_path.is_file():
-            return {
-                "installed": False,
-                "status": "lsfg-vk configuration is not installed",
-            }
-
+            return {"installed": False, "status": "Configuration is not installed"}
         try:
-            returncode, output = self._run(
-                ("validate", "--config", str(self.config_file_path), "--print")
+            data = ConfigurationManager.parse_toml_content_multi_profile(
+                self.config_file_path.read_text(encoding="utf-8")
             )
         except Exception as error:
             return {"installed": False, "status": str(error)}
-
-        if returncode != 0:
-            return {
-                "installed": False,
-                "status": output or "lsfg-vk could not validate its configuration",
-            }
-
-        if self.DLL_MISSING_MARKER in output:
-            return {
-                "installed": False,
-                "status": "Lossless Scaling's lsfg-vk.dll was not found",
-            }
-
-        if self.DLL_NONE_MARKER in output:
-            return {
-                "installed": False,
-                "status": "Lossless Scaling's lsfg-vk.dll is not configured",
-            }
-
-        return {
-            "installed": True,
-            "status": "Lossless Scaling detected by lsfg-vk",
-        }
+        dll = data["global_config"].get("dll") or ""
+        if not dll:
+            return {"installed": False, "status": f"Lossless Scaling's {LOSSLESS_DLL_FILENAME} was not found"}
+        if not Path(dll).is_file():
+            return {"installed": False, "status": f"{LOSSLESS_DLL_FILENAME} does not exist: {dll}"}
+        return {"installed": True, "status": "Lossless Scaling detected"}

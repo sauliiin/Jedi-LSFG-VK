@@ -2,7 +2,7 @@ import { Focusable } from "@decky/ui";
 import type { FlatpakApp, LsfgConfig } from "../api/lsfgApi";
 import type { GameTarget } from "../utils/gameTargets";
 import { ConfigurationSection } from "./ConfigurationSection";
-import { FpsMultiplierControl } from "./FpsMultiplierControl";
+import { TargetFpsControl } from "./TargetFpsControl";
 import { NowPlayingSummary } from "./NowPlayingSummary";
 
 interface Props {
@@ -31,7 +31,7 @@ export function FlatpakNowPlayingTab({ app, launcher, onConfigChange }: Props) {
           `Controls: ${app.app_name} profile`,
         ].filter((detail): detail is string => detail !== null)}
       />
-      <FpsMultiplierControl config={app.config} onConfigChange={changeConfig} />
+      <TargetFpsControl config={app.config} onConfigChange={changeConfig} />
       <ConfigurationSection config={app.config} onConfigChange={changeConfig} />
     </Focusable>
   );

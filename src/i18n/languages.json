@@ -22,9 +22,7 @@
     "CONFIG_ENABLE_WSI": "WSIを有効化",
     "CONFIG_ENABLE_WSI_DESC": "Gamescope WSIレイヤーを再有効化します。ゲームの再起動が必要。",
     "CONFIG_DISABLE_GAMESCOPE_WSI": "Gamescope WSIを無効化",
-    "CONFIG_DISABLE_GAMESCOPE_WSI_DESC": "ENABLE_GAMESCOPE_WSI=0を追加します。ゲームの再起動が必要です。",
-    "CONFIG_DISABLE_HDR": "HDRを無効化",
-    "CONFIG_DISABLE_HDR_DESC": "DXVKがゲームにHDRを公開しないようにします。ゲームの再起動が必要です。",
+    "CONFIG_DISABLE_GAMESCOPE_WSI_DESC": "HDRを変更せずENABLE_GAMESCOPE_WSI=0を追加します。ゲームの再起動が必要です。",
     "CONFIG_DISABLE_STEAMDECK_MODE": "Steam Deckモードを無効化",
     "CONFIG_DISABLE_STEAMDECK_MODE_DESC": "ゲーム固有のSteam Deck互換スイッチを無効化します。ゲームの再起動が必要です。",
     "CONFIG_DISABLE_VKBASALT": "vkBasaltを無効化",
@@ -86,7 +84,8 @@
     "PROFILE_DELETE_DESC_SUFFIX": "この操作は取り消せません。",
     "PROFILE_DELETE_BTN": "削除",
     "PROFILE_CANNOT_RENAME_TITLE": "デフォルトプロファイルの名前は変更できません",
-    "PROFILE_CANNOT_RENAME_MSG": "デフォルトプロファイルの名前は変更できません"
+    "PROFILE_CANNOT_RENAME_MSG": "デフォルトプロファイルの名前は変更できません",
+    "CONFIG_TARGET_FPS": "目標FPS"
   },
   "ko": {
     "CONTENT_FPS_MULTIPLIER": "FPS 배율",
@@ -111,9 +110,7 @@
     "CONFIG_ENABLE_WSI": "WSI 활성화",
     "CONFIG_ENABLE_WSI_DESC": "Gamescope WSI 레이어를 다시 활성화합니다. 게임 재시작 필요.",
     "CONFIG_DISABLE_GAMESCOPE_WSI": "Gamescope WSI 비활성화",
-    "CONFIG_DISABLE_GAMESCOPE_WSI_DESC": "ENABLE_GAMESCOPE_WSI=0을 추가합니다. 게임 재시작 필요.",
-    "CONFIG_DISABLE_HDR": "HDR 비활성화",
-    "CONFIG_DISABLE_HDR_DESC": "DXVK가 게임에 HDR을 노출하지 않도록 합니다. 게임 재시작 필요.",
+    "CONFIG_DISABLE_GAMESCOPE_WSI_DESC": "HDR을 변경하지 않고 ENABLE_GAMESCOPE_WSI=0을 추가합니다. 게임 재시작 필요.",
     "CONFIG_DISABLE_STEAMDECK_MODE": "Steam Deck 모드 비활성화",
     "CONFIG_DISABLE_STEAMDECK_MODE_DESC": "게임별 Steam Deck 호환 스위치를 비활성화합니다. 게임 재시작 필요.",
     "CONFIG_DISABLE_VKBASALT": "vkBasalt 비활성화",
@@ -175,7 +172,8 @@
     "PROFILE_DELETE_DESC_SUFFIX": "이 작업은 취소할 수 없습니다.",
     "PROFILE_DELETE_BTN": "삭제",
     "PROFILE_CANNOT_RENAME_TITLE": "기본 프로필 이름 변경 불가",
-    "PROFILE_CANNOT_RENAME_MSG": "기본 프로필의 이름은 변경할 수 없습니다"
+    "PROFILE_CANNOT_RENAME_MSG": "기본 프로필의 이름은 변경할 수 없습니다",
+    "CONFIG_TARGET_FPS": "목표 FPS"
   },
   "language_metadata": {
     "ko": {
@@ -228,9 +226,7 @@
     "CONFIG_ENABLE_WSI": "Enable WSI",
     "CONFIG_ENABLE_WSI_DESC": "Re-Enable Gamescope WSI Layer. Requires game restart to apply.",
     "CONFIG_DISABLE_GAMESCOPE_WSI": "Disable Gamescope WSI",
-    "CONFIG_DISABLE_GAMESCOPE_WSI_DESC": "Adds ENABLE_GAMESCOPE_WSI=0. Requires game restart to apply.",
-    "CONFIG_DISABLE_HDR": "Disable HDR",
-    "CONFIG_DISABLE_HDR_DESC": "Prevents DXVK from exposing HDR to the game. Requires game restart to apply.",
+    "CONFIG_DISABLE_GAMESCOPE_WSI_DESC": "Adds ENABLE_GAMESCOPE_WSI=0 without changing HDR. Requires game restart to apply.",
     "CONFIG_DISABLE_STEAMDECK_MODE": "Disable Steam Deck Mode",
     "CONFIG_DISABLE_STEAMDECK_MODE_DESC": "Disables a game-specific Steam Deck compatibility switch. Requires game restart to apply.",
     "CONFIG_DISABLE_VKBASALT": "Disable vkBasalt",
@@ -292,6 +288,7 @@
     "PROFILE_DELETE_DESC_SUFFIX": "? This action cannot be undone.",
     "PROFILE_DELETE_BTN": "Delete",
     "PROFILE_CANNOT_RENAME_TITLE": "Cannot rename default profile",
-    "PROFILE_CANNOT_RENAME_MSG": "The default profile cannot be renamed"
+    "PROFILE_CANNOT_RENAME_MSG": "The default profile cannot be renamed",
+    "CONFIG_TARGET_FPS": "Target FPS"
   }
 }

@@ -44,22 +44,22 @@ export function ConfigurationTab({
   onResetAll,
 }: ConfigurationTabProps) {
   const [detailAppId, setDetailAppId] = useState<string | null>(null);
-  const [focusFpsMultiplier, setFocusFpsMultiplier] = useState(false);
+  const [focusTargetFps, setFocusTargetFps] = useState(false);
   const [focusDetailAction, setFocusDetailAction] = useState<"enable" | "fps" | null>(null);
   const [focusConfiguredToggle, setFocusConfiguredToggle] = useState(false);
   const enableRef = useRef<HTMLDivElement>(null);
   const closeDetails = useCallback(() => {
-    setFocusFpsMultiplier(false);
+    setFocusTargetFps(false);
     setFocusDetailAction(null);
     setDetailAppId(null);
   }, []);
-  const clearFpsFocusRequest = useCallback(() => setFocusFpsMultiplier(false), []);
+  const clearFpsFocusRequest = useCallback(() => setFocusTargetFps(false), []);
   const clearConfiguredToggleFocusRequest = useCallback(() => setFocusConfiguredToggle(false), []);
 
   useEffect(() => {
     if (!focusDetailAction) return;
     if (focusDetailAction === "fps") {
-      setFocusFpsMultiplier(true);
+      setFocusTargetFps(true);
       setFocusDetailAction(null);
       return;
     }
@@ -100,12 +100,12 @@ export function ConfigurationTab({
   const profileLabel = selectedTarget?.name || "Game profile";
   const profileTransport = selectedTarget ? sourceLabel(selectedTarget.source) : sourceLabel(source);
   const profileDescription = selectedTarget
-    ? `${profileTransport} · App ID ${selectedTarget.appid} · ${selectedTarget.configured ? "LSFG-VK Enabled" : "LSFG-VK not enabled"}${selectedTarget.source === "unknown" ? " · Bulk actions exclude this profile" : ""}`
+    ? `${profileTransport} · App ID ${selectedTarget.appid} · ${selectedTarget.configured ? "Frame generation enabled" : "Frame generation not enabled"}${selectedTarget.source === "unknown" ? " · Bulk actions exclude this profile" : ""}`
     : "Game is no longer available";
   const enableProfile = async (appid: string, quitRunningGame = false) => {
     if (!(await onEnable(appid))) return;
     if (quitRunningGame) SteamClient.Apps.TerminateApp(appid, false);
-    setFocusFpsMultiplier(true);
+    setFocusTargetFps(true);
   };
   const handleProfileAction = async () => {
     if (selectedTarget?.configured) {
@@ -121,7 +121,7 @@ export function ConfigurationTab({
         showModal(
           <ConfirmModal
             strTitle="Game is running"
-            strDescription="Quit the game now so LSFG-VK is used on its next launch?"
+            strDescription="Quit the game now so frame generation is used on its next launch?"
             strOKButtonText="Quit and enable"
             strCancelButtonText="Enable without quitting"
             onOK={() => void enableProfile(detailAppId, true)}
@@ -186,8 +186,8 @@ export function ConfigurationTab({
         <GameConfigurationControls
           config={config}
           onConfigChange={(field, value) => onConfigChange(field, value, selectedTarget?.source !== "unknown")}
-          autoFocusFpsMultiplier={focusFpsMultiplier}
-          onFpsMultiplierFocused={clearFpsFocusRequest}
+          autoFocusTargetFps={focusTargetFps}
+          onTargetFpsFocused={clearFpsFocusRequest}
           showWorkarounds={selectedTarget.source !== "unknown"}
           workaroundTarget={selectedTarget.source !== "unknown" ? selectedTarget : undefined}
           onRepairWorkaround={selectedTarget.source !== "unknown" ? () => onRepair(selectedTarget.appid) : undefined}

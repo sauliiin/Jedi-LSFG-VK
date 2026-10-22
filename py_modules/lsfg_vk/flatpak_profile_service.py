@@ -16,6 +16,7 @@ class FlatpakProfileService:
         "enableZink",
     )
     BOOLEAN_FIELDS = STATE_FIELDS[1:]
+    PROFILE_ENV = "MAKO_PROFILE"
 
     def __init__(
         self,
@@ -74,10 +75,6 @@ class FlatpakProfileService:
                 return value
         return ""
 
-    @staticmethod
-    def _dxvk_config(frame_rate: int) -> str:
-        return f"dxvk.maxFrameRate = {frame_rate}" if frame_rate > 0 else ""
-
     def _apply_state(self, app_id: str, workaround_state: Dict[str, Any]) -> Dict[str, Any]:
         workaround_state = self._validate_state(workaround_state)
         self._state_entry(app_id)
@@ -86,30 +83,21 @@ class FlatpakProfileService:
         if not prepared.get("success") or not prepared.get("owned"):
             raise RuntimeError(prepared.get("error") or "Could not restore plugin-owned Flatpak preparation")
         profile = self.configuration_service.flatpak_profile_name(app_id)
+        # Gamescope WSI, HDR exposure and vkBasalt are fixed by prepare_app,
+        # and MAKO's base FPS cap replaces the DXVK cap.
         args = [
             "override",
             "--user",
-            f"--env=LSFGVK_PROFILE={profile}",
-            "--unset-env=DISABLE_LSFGVK",
-            "--unset-env=DISABLE_LSFG",
+            f"--env={self.PROFILE_ENV}={profile}",
         ]
-        if workaround_state["disableGamescopeWsi"]:
-            args.extend(["--env=ENABLE_GAMESCOPE_WSI=0", "--unset-env=DISABLE_GAMESCOPE_WSI"])
-        if workaround_state["disableHdr"]:
-            args.append("--env=DXVK_HDR=0")
         if workaround_state["disableSteamdeckMode"]:
             args.append("--env=SteamDeck=0")
-        if workaround_state["disableVkbasalt"]:
-            args.extend(["--env=DISABLE_VKBASALT=1", "--unset-env=ENABLE_VKBASALT"])
         if workaround_state["enableZink"]:
             args.extend([
                 "--env=__GLX_VENDOR_LIBRARY_NAME=mesa",
                 "--env=MESA_LOADER_DRIVER_OVERRIDE=zink",
                 "--env=GALLIUM_DRIVER=zink",
             ])
-        dxvk_config = self._dxvk_config(workaround_state["dxvkFrameRate"])
-        if dxvk_config:
-            args.append(f"--env=DXVK_CONFIG={dxvk_config}")
         args.append(app_id)
         result = self.flatpak_service._run_flatpak_command(args, capture_output=True, text=True)
         if result.returncode != 0:
@@ -140,7 +128,6 @@ class FlatpakProfileService:
                     **self.configuration_service._public_config({}),
                     **(existing.get("global_config") or {}),
                 }
-                config["active_in"] = []
                 saved = self.configuration_service.update_flatpak_config(app_id, config)
                 if not saved.get("success"):
                     raise RuntimeError(saved.get("error") or "Could not create Flatpak profile")
@@ -284,7 +271,7 @@ class FlatpakProfileService:
                         capture_output=True,
                         text=True,
                     )
-                    selector_ready = shown.returncode == 0 and f"LSFGVK_PROFILE={profile}" in shown.stdout.splitlines()
+                    selector_ready = shown.returncode == 0 and f"{self.PROFILE_ENV}={profile}" in shown.stdout.splitlines()
                 apps.append({
                     **item,
                     "profile": profile,
@@ -317,7 +304,7 @@ class FlatpakProfileService:
                     text=True,
                 )
                 profile = self.configuration_service.flatpak_profile_name(app_id)
-                if shown.returncode == 0 and self._environment_value(shown.stdout, "LSFGVK_PROFILE") == profile:
+                if shown.returncode == 0 and self._environment_value(shown.stdout, self.PROFILE_ENV) == profile:
                     enabled.add(app_id)
             if not enabled:
                 return {"success": True, "message": "", "error": None, "apps": []}

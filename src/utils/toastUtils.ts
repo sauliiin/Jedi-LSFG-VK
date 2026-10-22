@@ -14,7 +14,7 @@ export const showErrorToast = showToast;
 export const ToastMessages = {
   INSTALL_SUCCESS: {
     title: "Installation Complete",
-    body: "lsfg-vk has been installed successfully",
+    body: "MAKO Renderer has been installed successfully",
   },
   INSTALL_ERROR: {
     title: "Installation Failed",
@@ -22,7 +22,7 @@ export const ToastMessages = {
   },
   UNINSTALL_SUCCESS: {
     title: "Uninstallation Complete",
-    body: "lsfg-vk has been uninstalled successfully",
+    body: "MAKO Renderer has been uninstalled successfully",
   },
   UNINSTALL_ERROR: {
     title: "Uninstallation Failed",

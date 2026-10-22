@@ -7,15 +7,17 @@ import threading
 from typing import Any, Dict, Optional, Tuple
 
 from .base_service import BaseService
+from .configuration import ConfigurationService
 from .constants import WRAPPER_FILENAME
 
 
 class WrapperService(BaseService):
-    LEGACY_FORMAT_VERSION = 1
-    FORMAT_VERSION = 2
-    LEGACY_MARKER = "# lsfg-vk-wrapper-format: 1"
-    MARKER = "# lsfg-vk-wrapper-format: 2"
-    WRAPPER_TOKEN = "~/.lsfg"
+    FORMAT_VERSION = 1
+    MARKER = "# jedi-lsfg-wrapper-format: 1"
+    WRAPPER_TOKEN = f"~/{WRAPPER_FILENAME}"
+    # dxvkFrameRate, disableGamescopeWsi, disableHdr and disableVkbasalt are
+    # kept for state compatibility only: MAKO's base FPS cap replaces the DXVK
+    # cap, and mako-launch always owns Gamescope WSI, HDR exposure and vkBasalt.
     STATE_FIELDS = (
         "dxvkFrameRate",
         "disableGamescopeWsi",
@@ -26,17 +28,13 @@ class WrapperService(BaseService):
     )
     BOOLEAN_FIELDS = STATE_FIELDS[1:]
     MANAGED_ENV_KEYS = (
-        "ENABLE_GAMESCOPE_WSI",
-        "DISABLE_GAMESCOPE_WSI",
-        "DXVK_HDR",
-        "DISABLE_LSFGVK",
-        "DISABLE_LSFG",
-        "DISABLE_VKBASALT",
-        "ENABLE_VKBASALT",
+        "MAKO_CONFIG",
+        "MAKO_ENV",
+        "MAKO_PROFILE",
+        "MAKO_PROFILE_FALLBACK",
         "MESA_LOADER_DRIVER_OVERRIDE",
         "__GLX_VENDOR_LIBRARY_NAME",
         "GALLIUM_DRIVER",
-        "DXVK_FRAME_RATE",
     )
 
     def __init__(self, logger=None):
@@ -96,11 +94,8 @@ class WrapperService(BaseService):
 
     @classmethod
     def _validate_document(cls, raw: Any) -> Dict[str, Any]:
-        if not isinstance(raw, dict) or raw.get("version") not in (
-            cls.LEGACY_FORMAT_VERSION,
-            cls.FORMAT_VERSION,
-        ):
-            raise ValueError("Unsupported lsfg-vk workaround state version")
+        if not isinstance(raw, dict) or raw.get("version") != cls.FORMAT_VERSION:
+            raise ValueError("Unsupported workaround state version")
         apps = raw.get("apps")
         if not isinstance(apps, dict):
             raise ValueError("Workaround state apps must be an object")
@@ -131,12 +126,12 @@ class WrapperService(BaseService):
         if self.wrapper_path.is_symlink() or not self.wrapper_path.exists():
             return False
         if not self.wrapper_path.is_file():
-            raise RuntimeError("lsfg wrapper path is not a regular file")
+            raise RuntimeError("Launch wrapper path is not a regular file")
         try:
             prefix = "\n".join(self.wrapper_path.read_text(encoding="utf-8").splitlines()[:8])
         except OSError as error:
-            raise RuntimeError(f"Could not read lsfg wrapper: {error}") from error
-        return self.MARKER in prefix or self.LEGACY_MARKER in prefix
+            raise RuntimeError(f"Could not read launch wrapper: {error}") from error
+        return self.MARKER in prefix
 
     def _assert_wrapper_owned_or_absent(self) -> bool:
         if not self.wrapper_path.exists() and not self.wrapper_path.is_symlink():
@@ -149,22 +144,19 @@ class WrapperService(BaseService):
     def _shell(value: str) -> str:
         return shlex.quote(value)
 
-    def _state_lines(self, state: Dict[str, Any]) -> list[str]:
+    def _state_lines(self, appid: str, state: Dict[str, Any]) -> list[str]:
         lines = ["    unset " + " ".join(self.MANAGED_ENV_KEYS)]
         lines.extend([
             '    SteamAppId="$appid"',
             "    export SteamAppId",
-            f"    LSFGVK_CONFIG={self._shell(str(self.config_file_path))}",
-            "    export LSFGVK_CONFIG",
+            f"    MAKO_CONFIG={self._shell(str(self.config_file_path))}",
+            "    export MAKO_CONFIG",
+            f"    MAKO_PROFILE={self._shell(ConfigurationService.game_profile_name(appid))}",
+            "    export MAKO_PROFILE",
+            "    use_mako=1",
         ])
-        if state["disableGamescopeWsi"]:
-            lines.extend(["    ENABLE_GAMESCOPE_WSI=0", "    export ENABLE_GAMESCOPE_WSI"])
-        if state["disableHdr"]:
-            lines.extend(["    DXVK_HDR=0", "    export DXVK_HDR"])
         if state["disableSteamdeckMode"]:
             lines.extend(["    SteamDeck=0", "    export SteamDeck"])
-        if state["disableVkbasalt"]:
-            lines.extend(["    DISABLE_VKBASALT=1", "    export DISABLE_VKBASALT"])
         if state["enableZink"]:
             lines.extend([
                 "    __GLX_VENDOR_LIBRARY_NAME=mesa",
@@ -174,28 +166,16 @@ class WrapperService(BaseService):
                 "    GALLIUM_DRIVER=zink",
                 "    export GALLIUM_DRIVER",
             ])
-        frame_rate = state["dxvkFrameRate"]
-        if frame_rate > 0:
-            lines.extend([
-                '    if [ -n "${DXVK_CONFIG+x}" ]; then',
-                '      if [ -n "${DXVK_CONFIG}" ]; then',
-                f'        DXVK_CONFIG="${{DXVK_CONFIG}}; dxvk.maxFrameRate = {frame_rate}"',
-                "      else",
-                f'        DXVK_CONFIG="dxvk.maxFrameRate = {frame_rate}"',
-                "      fi",
-                "    else",
-                f'      DXVK_CONFIG="dxvk.maxFrameRate = {frame_rate}"',
-                "    fi",
-                "    export DXVK_CONFIG",
-            ])
         return lines
 
     def _render_wrapper(self, document: Dict[str, Any]) -> str:
+        launcher = self._shell(str(self.launcher_path))
         lines = [
             "#!/bin/sh",
             self.MARKER,
             "",
             "appid=",
+            "use_mako=",
             'case "${SteamAppId-}" in',
             "  ''|*[!0-9]*) ;;",
             '  *) appid="${SteamAppId}" ;;',
@@ -216,10 +196,14 @@ class WrapperService(BaseService):
         ]
         for appid in sorted(document["apps"], key=lambda value: int(value)):
             lines.append(f"  {appid})")
-            lines.extend(self._state_lines(document["apps"][appid]["state"]))
+            lines.extend(self._state_lines(appid, document["apps"][appid]["state"]))
             lines.append("    ;;")
         lines.extend([
             "esac",
+            "# A missing Renderer must never stop the game from starting.",
+            f'if [ -n "$use_mako" ] && [ -x {launcher} ]; then',
+            f'  exec {launcher} "$@"',
+            "fi",
             'exec "$@"',
             "",
         ])
@@ -415,7 +399,7 @@ class WrapperService(BaseService):
                     removed.append(str(self.sidecar_path))
             return {
                 "success": True,
-                "message": "Removed lsfg-vk workaround state",
+                "message": "Removed workaround state",
                 "error": None,
                 "removed_files": removed,
             }
@@ -450,7 +434,7 @@ class WrapperService(BaseService):
                     self.sidecar_path.unlink()
             return {
                 "success": True,
-                "message": "Replaced lsfg-vk wrapper with a safe passthrough",
+                "message": "Replaced launch wrapper with a safe passthrough",
                 "error": None,
                 "removed_files": [str(self.sidecar_path)] if sidecar_exists else [],
             }

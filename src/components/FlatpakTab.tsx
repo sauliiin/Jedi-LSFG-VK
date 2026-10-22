@@ -5,7 +5,7 @@ import type { FlatpakApp, LsfgConfig, WorkaroundState } from "../api/lsfgApi";
 import { CollapsibleItemGroup, collapsibleItemGroupStyles, usePersistentCollapsed } from "./CollapsibleItemGroup";
 import { ConfigurationSection } from "./ConfigurationSection";
 import { FlatpakWorkaroundsSection } from "./FlatpakWorkaroundsSection";
-import { FpsMultiplierControl } from "./FpsMultiplierControl";
+import { TargetFpsControl } from "./TargetFpsControl";
 import { ProfileDetails } from "./ProfileDetails";
 
 interface Props {
@@ -63,7 +63,7 @@ export function FlatpakTab({
     showModal(
       <ConfirmModal
         strTitle="Enable all available Flatpaks?"
-        strDescription="Create individual LSFG-VK profiles for every Flatpak app this plugin can manage. Apps prepared externally or unavailable will be skipped."
+        strDescription="Create individual frame generation profiles for every Flatpak app this plugin can manage. Apps prepared externally or unavailable will be skipped."
         strOKButtonText="Enable all"
         strCancelButtonText="Cancel"
         onOK={() => void onEnableAll()}
@@ -215,7 +215,7 @@ export function FlatpakTab({
               disabled={busy || external || Boolean(selected.error)}
               onClick={() => void onEnable(selected.app_id)}
             >
-              {busy ? "Enabling..." : external ? "Prepared externally" : "Enable LSFG-VK"}
+              {busy ? "Enabling..." : external ? "Prepared externally" : "Enable frame generation"}
             </ButtonItem>
           </PanelSectionRow>
           {selected.error && (
@@ -227,7 +227,7 @@ export function FlatpakTab({
       )}
       {selected.enabled && config && (
         <>
-          <FpsMultiplierControl config={config} onConfigChange={changeConfig} />
+          <TargetFpsControl config={config} onConfigChange={changeConfig} />
           <ConfigurationSection config={config} onConfigChange={changeConfig} />
           <FlatpakWorkaroundsSection
             state={selected.workarounds}

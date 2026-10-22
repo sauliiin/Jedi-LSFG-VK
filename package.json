@@ -1,16 +1,16 @@
 {
-  "name": "decky-lsfg-vk",
-  "version": "0.14.4",
-  "description": "Use Lossless Scaling on the Steam Deck using the lsfg-vk vulkan layer",
+  "name": "jedi-lsfg-vk",
+  "version": "1.0.0",
+  "description": "Adaptive Lossless Scaling frame generation with a single target FPS, powered by MAKO Renderer",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
-    "test": "node --experimental-strip-types --test tests/steamLaunchOptions.test.ts tests/nowPlaying.test.ts tests/gameTargets.test.ts && python3.12 -m unittest discover -s tests -p 'test_*.py'"
+    "test": "node --experimental-strip-types --test tests/steamLaunchOptions.test.ts tests/nowPlaying.test.ts tests/gameTargets.test.ts && python3 -m unittest discover -s tests -p 'test_*.py'"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xXJSONDeruloXx/decky-lsfg-vk.git"
+    "url": "git+https://github.com/sauliiin/Jedi-LSFG-VK.git"
   },
   "keywords": [
     "decky",
@@ -20,14 +20,16 @@
     "lossless-scaling",
     "frame-generation",
     "lsfg-vk",
-    "framegen"
+    "framegen",
+    "adaptive",
+    "mako"
   ],
-  "author": "Kurt Himebauch <dkh4830@gmail.com>",
+  "author": "Saulo Hugo Rossi",
   "license": "BSD-3-Clause",
   "bugs": {
-    "url": "https://github.com/xXJSONDeruloXx/decky-lossless-scaling-vk/issues"
+    "url": "https://github.com/sauliiin/Jedi-LSFG-VK/issues"
   },
-  "homepage": "https://github.com/xXJSONDeruloXx/decky-lossless-scaling-vk#readme",
+  "homepage": "https://github.com/sauliiin/Jedi-LSFG-VK#readme",
   "devDependencies": {
     "@decky/rollup": "^1.0.1",
     "@decky/ui": "^4.7.2",
@@ -46,19 +48,28 @@
     "@rollup/rollup-linux-x64-gnu": "4.22.5",
     "@rollup/rollup-linux-x64-musl": "4.22.5"
   },
-  "remote_binary_bundling" : true,
+  "remote_binary_bundling": true,
   "remote_binary": [
     {
-      "name": "lsfg-vk-2.0.0.tar.xz",
-      "url": "https://builds.lsfg-vk.dev/lsfg-vk-2.0.0.tar.xz",
-      "sha256hash": "08bdbdf373a111022df87dac7aa87e3b564bb841f961552e3ca85fea12b5aa74"
+      "name": "MAKO-Renderer-v4.6.0-linux.tar.xz",
+      "url": "https://github.com/eugeniosegala/MAKO/releases/download/render-v4.6.0/MAKO-Renderer-v4.6.0-linux.tar.xz",
+      "sha256hash": "66224414e2d94f7cb019226735b3b6d26b9be7103c5334250522f7260213be56"
     }
   ],
   "pnpm": {
     "supportedArchitectures": {
-      "cpu": ["arm64", "x64"],
-      "libc": ["glibc", "musl"],
-      "os": ["darwin", "linux"]
+      "cpu": [
+        "arm64",
+        "x64"
+      ],
+      "libc": [
+        "glibc",
+        "musl"
+      ],
+      "os": [
+        "darwin",
+        "linux"
+      ]
     },
     "peerDependencyRules": {
       "ignoreMissing": [

@@ -1,25 +1,40 @@
+LOCAL_PREFIX = ".local"
 LOCAL_BIN = ".local/bin"
-LOCAL_SHARE = ".local/share"
 LOCAL_LIB = ".local/lib"
-VULKAN_LAYER_DIR = ".local/share/vulkan/implicit_layer.d"
-CONFIG_DIR = ".config/lsfg-vk"
+LOCAL_LIB32 = ".local/lib32"
+LOCAL_SHARE = ".local/share"
+CONFIG_DIR = ".config/jedi-lsfg-vk"
 
-SCRIPT_NAME = "lsfg"
-WRAPPER_FILENAME = ".lsfg"
+WRAPPER_FILENAME = ".jedi-lsfg"
 CONFIG_FILENAME = "conf.toml"
-ARCHIVE_FILENAME = "lsfg-vk-2.0.0.tar.xz"
-LIB_FILENAME = "liblsfg-vk-layer.so"
-LIB_X86_FILENAME = "liblsfg-vk-layer.x86.so"
-JSON_FILENAME = "VkLayer_LSFGVK_frame_generation.json"
-JSON_X86_FILENAME = "VkLayer_LSFGVK_frame_generation.x86.json"
-CLI_FILENAME = "lsfg-vk-cli"
-UI_FILENAME = "lsfg-vk-ui"
-UI_DESKTOP_FILENAME = "gay.pancake.lsfg-vk-ui.desktop"
-UI_ICON_FILENAME = "gay.pancake.lsfg-vk-ui.png"
-STEAM_LOSSLESS_SCALING_APP_ID = "993090"
-STEAM_LOSSLESS_SCALING_BRANCH = "lsfg-vk"
+OWNERSHIP_FILENAME = "renderer_ownership.json"
 
-LEGACY_LIB_FILENAME = "liblsfg-vk.so"
-LEGACY_JSON_FILENAME = "VkLayer_LS_frame_generation.json"
+# MAKO Renderer (GPL-3.0-or-later) provides the Vulkan layer with Adaptive
+# Frame Generation. The archive is downloaded by Decky through remote_binary.
+MAKO_VERSION = "4.6.0"
+ARCHIVE_FILENAME = f"MAKO-Renderer-v{MAKO_VERSION}-linux.tar.xz"
+ARCHIVE_INSTALLER = "Install MAKO Renderer"
+LAUNCHER_FILENAME = "mako-launch"
+CLI_FILENAME = "mako-cli"
+INSTALLER_FILENAME = "mako-installer"
+LIB_FILENAME = "libmako-render.so"
+LAYER_MANIFEST = "share/mako-render/vulkan/implicit_layer.d/VkLayer_MAKO_render.json"
+LAYER_MANIFEST_X86 = "share/mako-render/vulkan/implicit_layer.d/VkLayer_MAKO_render.x86.json"
+INSTALLER_STATE = "share/mako-render/installer/installed-files.sha256"
+
+FLATPAK_BUNDLE_ARCHIVE = f"MAKO-Renderer-v{MAKO_VERSION}-flatpaks.tar.xz"
+FLATPAK_BUNDLE_URL = (
+    "https://github.com/eugeniosegala/MAKO/releases/download/"
+    f"render-v{MAKO_VERSION}/{FLATPAK_BUNDLE_ARCHIVE}"
+)
+FLATPAK_BUNDLE_SHA256 = "0aff4bc63cf8241ca26375dbd4c1d52168766d8f7914e2670331e25dbd415fd8"
+
+LOSSLESS_DLL_FILENAME = "Lossless.dll"
+STEAM_LOSSLESS_SCALING_APP_ID = "993090"
+# MAKO validates Lossless.dll from the default public branch.
+STEAM_LOSSLESS_SCALING_BRANCH = "public"
+
+# Launch-time variables shared by the Steam wrapper and Flatpak overrides.
+COMPETING_LSFG_DISABLE_ENVS = ("DISABLE_LSFG", "DISABLE_LSFGVK")
 
 BIN_DIR = "bin"

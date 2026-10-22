@@ -4,6 +4,7 @@ from typing import Dict, Optional, Tuple
 
 from .base_service import BaseService
 from .constants import (
+    LOSSLESS_DLL_FILENAME,
     STEAM_LOSSLESS_SCALING_APP_ID,
     STEAM_LOSSLESS_SCALING_BRANCH,
 )
@@ -237,11 +238,9 @@ class SteamService(BaseService):
             "restart_required": False,
         }
 
-    def find_lsfg_vk_dll(self) -> Optional[str]:
-        if self.get_branch_status().get("needs_switch"):
-            return None
+    def find_lossless_dll(self) -> Optional[str]:
         directory = self._lossless_scaling_path()
-        path = directory / "lsfg-vk.dll" if directory else None
+        path = directory / LOSSLESS_DLL_FILENAME if directory else None
         return str(path) if path and path.is_file() else None
 
     def get_branch_status(self) -> Dict[str, object]:
@@ -263,9 +262,9 @@ class SteamService(BaseService):
                 )
             fields = self._status_fields(manifest, manifest.read_text(encoding="utf-8"))
             message = (
-                "Lossless Scaling has the lsfg-vk Steam branch selected"
+                "Lossless Scaling is on the default public Steam branch"
                 if not fields["needs_switch"]
-                else "Select lsfg-vk in Lossless Scaling's Steam Properties > Betas"
+                else "Select None in Lossless Scaling's Steam Properties > Game Versions & Betas"
             )
             return self._success_response(dict, message, **fields)
         except Exception as error:

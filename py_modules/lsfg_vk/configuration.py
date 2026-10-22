@@ -8,6 +8,7 @@ from .runtime_service import RuntimeService
 
 class ConfigurationService(BaseService):
     FLATPAK_PROFILE_PREFIX = "flatpak:"
+    GAME_PROFILE_PREFIX = "app:"
 
     def __init__(self, logger=None, runtime_service: RuntimeService = None):
         super().__init__(logger)
@@ -22,7 +23,7 @@ class ConfigurationService(BaseService):
         content = ConfigurationManager.generate_toml_content_multi_profile(data)
         self._write_file(self.config_file_path, content)
         self.log.warning(
-            f"Removed legacy lsfg-vk configuration version {version!r}; reset conf.toml to v2 defaults"
+            f"Removed legacy configuration version {version!r}; reset conf.toml to v2 defaults"
         )
         return data
 
@@ -42,26 +43,18 @@ class ConfigurationService(BaseService):
         self.runtime_service.validate_config_content(content)
         self._write_file(self.config_file_path, content, 0o644)
 
-    @staticmethod
-    def _profile_name(data: ProfileData, appid: str, game_name: str) -> str:
-        name = str(game_name).strip()
-        if not name:
-            raise ValueError("game name is required")
-        existing = data["profiles"].get(name)
-        if existing is not None and str(appid) not in existing.get("active_in", []):
-            name = f"{name} ({appid})"
-        return name
+    @classmethod
+    def game_profile_name(cls, appid: str) -> str:
+        """MAKO profile selected by the launch wrapper for a Steam App ID."""
+        value = str(appid).strip()
+        if not re.fullmatch(r"-?[0-9]+", value):
+            raise ValueError("Invalid Steam App ID")
+        return f"{cls.GAME_PROFILE_PREFIX}{value}"
 
-    @staticmethod
-    def _profile_for_appid(data: ProfileData, appid: str):
-        return next(
-            (
-                (name, profile)
-                for name, profile in data["profiles"].items()
-                if str(appid) in profile.get("active_in", [])
-            ),
-            (None, None),
-        )
+    @classmethod
+    def _appid_for_profile(cls, name: str):
+        match = re.fullmatch(rf"{re.escape(cls.GAME_PROFILE_PREFIX)}(-?[0-9]+)", name)
+        return match.group(1) if match else None
 
     @classmethod
     def flatpak_profile_name(cls, app_id: str) -> str:
@@ -79,10 +72,10 @@ class ConfigurationService(BaseService):
             data = self._get_profile_data()
             games = []
             for name, raw in data["profiles"].items():
-                active_in = raw.get("active_in", [])
-                if len(active_in) != 1 or not re.fullmatch(r"-?[0-9]+", str(active_in[0])):
+                appid = self._appid_for_profile(name)
+                if appid is None:
                     continue
-                games.append({"appid": str(active_in[0]), "profile": name, "config": self._public_config(raw)})
+                games.append({"appid": appid, "profile": name, "config": self._public_config(raw)})
             return self._success_response(dict, global_config=dict(data["global_config"]), games=games)
         except Exception as error:
             self.log.error(f"Error reading game configs: {error}")
@@ -105,15 +98,11 @@ class ConfigurationService(BaseService):
     def update_game_config(self, appid: str, game_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         try:
             data = self._get_profile_data()
-            old_name, _ = self._profile_for_appid(data, appid)
-            name = self._profile_name(data, appid, game_name)
+            name = self.game_profile_name(appid)
             merged_config = {**data["global_config"], **{key: value for key, value in config.items() if key != "no_fp16"}}
             if not config.get("dll"):
                 merged_config["dll"] = data["global_config"].get("dll", "")
             validated = self._public_config(merged_config)
-            validated["active_in"] = [str(appid)]
-            if old_name and old_name != name:
-                data["profiles"].pop(old_name, None)
             data["profiles"][name] = validated
             self._save_profile_data(data)
             return self._success_response(dict, appid=str(appid), config=validated)
@@ -144,7 +133,6 @@ class ConfigurationService(BaseService):
             if not config.get("dll"):
                 merged_config["dll"] = data["global_config"].get("dll", "")
             validated = self._public_config(merged_config)
-            validated["active_in"] = []
             data["profiles"][name] = validated
             self._save_profile_data(data)
             return self._success_response(dict, app_id=str(app_id), profile=name, exists=True, config=validated)
@@ -177,9 +165,7 @@ class ConfigurationService(BaseService):
     def reset_game_config(self, appid: str) -> Dict[str, Any]:
         try:
             data = self._get_profile_data()
-            name, _ = self._profile_for_appid(data, appid)
-            if name:
-                data["profiles"].pop(name, None)
+            data["profiles"].pop(self.game_profile_name(appid), None)
             self._save_profile_data(data)
             return self._success_response(dict, appid=str(appid), exists=False)
         except Exception as error:
@@ -202,10 +188,7 @@ class ConfigurationService(BaseService):
             data["profiles"] = {
                 name: profile
                 for name, profile in data["profiles"].items()
-                if not (
-                    len(profile.get("active_in", [])) == 1
-                    and str(profile["active_in"][0]) in requested
-                )
+                if self._appid_for_profile(name) not in requested
             }
             self._save_profile_data(data)
             return self._success_response(dict, global_config=dict(data["global_config"]), games=[])
@@ -218,10 +201,7 @@ class ConfigurationService(BaseService):
             data["profiles"] = {
                 name: profile
                 for name, profile in data["profiles"].items()
-                if not (
-                    len(profile.get("active_in", [])) == 1
-                    and re.fullmatch(r"-?[0-9]+", str(profile.get("active_in", [""])[0]))
-                )
+                if self._appid_for_profile(name) is None
             }
             self._save_profile_data(data)
             return self._success_response(dict, global_config=dict(data["global_config"]), games=[])

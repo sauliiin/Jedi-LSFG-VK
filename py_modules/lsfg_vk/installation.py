@@ -1,27 +1,23 @@
-import os
-import shutil
+import json
+import subprocess
 import tarfile
 import tempfile
 import traceback
-from pathlib import Path
-from typing import Dict
+from pathlib import Path, PurePosixPath
 
 from .base_service import BaseService
 from .config_schema import ConfigurationManager, ProfileData, UnsupportedConfigurationVersion
 from .constants import (
     ARCHIVE_FILENAME,
+    ARCHIVE_INSTALLER,
     BIN_DIR,
-    CLI_FILENAME,
-    JSON_FILENAME,
-    JSON_X86_FILENAME,
-    LEGACY_JSON_FILENAME,
-    LEGACY_LIB_FILENAME,
+    INSTALLER_FILENAME,
+    INSTALLER_STATE,
+    LAYER_MANIFEST,
+    LAYER_MANIFEST_X86,
     LIB_FILENAME,
-    LIB_X86_FILENAME,
-    LOCAL_SHARE,
-    UI_DESKTOP_FILENAME,
-    UI_FILENAME,
-    UI_ICON_FILENAME,
+    MAKO_VERSION,
+    OWNERSHIP_FILENAME,
 )
 from .runtime_service import RuntimeService
 from .steam_service import SteamService
@@ -29,6 +25,8 @@ from .types import InstallationCheckResponse, InstallationResponse, Uninstallati
 
 
 class InstallationService(BaseService):
+    INSTALLER_TIMEOUT_SECONDS = 180
+
     def __init__(
         self,
         logger=None,
@@ -38,89 +36,110 @@ class InstallationService(BaseService):
         super().__init__(logger)
         self.runtime_service = runtime_service or RuntimeService(logger=self.log)
         self.steam_service = steam_service or SteamService(logger=self.log)
-        self.lib_file = self.local_lib_dir / LIB_FILENAME
-        self.lib_x86_file = self.local_lib_dir / LIB_X86_FILENAME
-        self.json_file = self.local_share_dir / JSON_FILENAME
-        self.json_x86_file = self.local_share_dir / JSON_X86_FILENAME
-        self.cli_file = self.local_bin_dir / CLI_FILENAME
-        self.legacy_lib_file = self.local_lib_dir / LEGACY_LIB_FILENAME
-        self.legacy_json_file = self.local_share_dir / LEGACY_JSON_FILENAME
+        self.archive_path = Path(__file__).parent.parent.parent / BIN_DIR / ARCHIVE_FILENAME
+        self.ownership_path = self.config_dir / OWNERSHIP_FILENAME
+        self.installer_state_path = self.install_prefix / INSTALLER_STATE
+        self.installed_installer_path = self.local_bin_dir / INSTALLER_FILENAME
+
+    def _renderer_files(self) -> tuple[Path, ...]:
+        return (
+            self.launcher_path,
+            self.cli_path,
+            self.local_lib_dir / LIB_FILENAME,
+            self.install_prefix / "lib32" / LIB_FILENAME,
+            self.install_prefix / LAYER_MANIFEST,
+            self.install_prefix / LAYER_MANIFEST_X86,
+        )
+
+    def _renderer_installed(self) -> bool:
+        return all(path.is_file() for path in self._renderer_files())
 
     def install(self) -> InstallationResponse:
         try:
-            archive_path = Path(__file__).parent.parent.parent / BIN_DIR / ARCHIVE_FILENAME
-            if not archive_path.exists():
-                raise FileNotFoundError(f"{ARCHIVE_FILENAME} not found at {archive_path}")
+            if not self.archive_path.exists():
+                raise FileNotFoundError(f"{ARCHIVE_FILENAME} not found at {self.archive_path}")
             self._ensure_directories()
             profile_data = self._prepare_config()
-            self._remove_legacy_layer_files()
-            self._install_archive(archive_path)
+            installed_by_plugin = self._installed_by_plugin()
+            if installed_by_plugin is None:
+                # Only an installation created here is removed on uninstall;
+                # a Renderer shared with MAKO Decky or a standalone setup stays.
+                installed_by_plugin = not (
+                    self.installer_state_path.exists() or self._renderer_installed()
+                )
+            self._install_renderer(self.archive_path)
             content = ConfigurationManager.generate_toml_content_multi_profile(profile_data)
             self.runtime_service.validate_config_content(content)
             self._write_file(self.config_file_path, content, 0o644)
-            return self._success_response(InstallationResponse, "lsfg-vk 2.0.0 installed successfully")
+            self._write_file(
+                self.ownership_path,
+                json.dumps({"version": 1, "installed_renderer": installed_by_plugin}) + "\n",
+            )
+            return self._success_response(
+                InstallationResponse,
+                f"MAKO Renderer {MAKO_VERSION} installed successfully",
+            )
         except Exception as error:
-            self.log.error(f"Error installing lsfg-vk: {error}")
+            self.log.error(f"Error installing MAKO Renderer: {error}")
             return self._error_response(InstallationResponse, str(error))
 
-    def _payload_destinations(self) -> Dict[str, tuple[Path, int]]:
-        return {
-            f"bin/{CLI_FILENAME}": (self.cli_file, 0o755),
-            f"bin/{UI_FILENAME}": (self.local_bin_dir / UI_FILENAME, 0o755),
-            f"lib/{LIB_FILENAME}": (self.lib_file, 0o644),
-            f"lib/{LIB_X86_FILENAME}": (self.lib_x86_file, 0o644),
-            f"share/vulkan/implicit_layer.d/{JSON_FILENAME}": (self.json_file, 0o644),
-            f"share/vulkan/implicit_layer.d/{JSON_X86_FILENAME}": (self.json_x86_file, 0o644),
-            f"share/applications/{UI_DESKTOP_FILENAME}": (
-                self.user_home / LOCAL_SHARE / "applications" / UI_DESKTOP_FILENAME,
-                0o644,
-            ),
-            f"share/icons/hicolor/256x256/apps/{UI_ICON_FILENAME}": (
-                self.user_home / LOCAL_SHARE / "icons/hicolor/256x256/apps" / UI_ICON_FILENAME,
-                0o644,
-            ),
-        }
+    @staticmethod
+    def _safe_members(archive: tarfile.TarFile) -> list[tarfile.TarInfo]:
+        members = []
+        for member in archive.getmembers():
+            path = PurePosixPath(member.name)
+            if path.is_absolute() or ".." in path.parts:
+                raise ValueError(f"Unsafe path in renderer archive: {member.name}")
+            if not (member.isfile() or member.isdir()):
+                raise ValueError(f"Unsupported entry in renderer archive: {member.name}")
+            members.append(member)
+        return members
 
-    def _install_archive(self, archive_path: Path) -> None:
-        destinations = self._payload_destinations()
-        found = set()
-        with tarfile.open(archive_path, "r:*") as archive:
-            members = {
-                member.name.removeprefix("./"): member
-                for member in archive.getmembers()
-                if member.isfile()
-            }
-            for source_path, (destination, mode) in destinations.items():
-                member = members.get(source_path)
-                if member is None:
-                    continue
-                source = archive.extractfile(member)
-                if source is None:
-                    continue
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                temporary_path = None
-                try:
-                    with tempfile.NamedTemporaryFile(
-                        mode="wb",
-                        dir=destination.parent,
-                        prefix=f".{destination.name}.",
-                        delete=False,
-                    ) as temporary_file:
-                        temporary_path = Path(temporary_file.name)
-                        with source:
-                            shutil.copyfileobj(source, temporary_file)
-                        temporary_file.flush()
-                        os.fsync(temporary_file.fileno())
-                    temporary_path.chmod(mode)
-                    os.replace(temporary_path, destination)
-                    found.add(source_path)
-                except Exception:
-                    if temporary_path is not None:
-                        temporary_path.unlink(missing_ok=True)
-                    raise
-        missing = sorted(set(destinations) - found)
-        if missing:
-            raise OSError("Archive is missing required files: " + ", ".join(missing))
+    def _install_renderer(self, archive_path: Path) -> None:
+        with tempfile.TemporaryDirectory(prefix="jedi-lsfg-mako-") as staging:
+            with tarfile.open(archive_path, "r:*") as archive:
+                members = self._safe_members(archive)
+                if hasattr(tarfile, "data_filter"):
+                    archive.extractall(staging, members=members, filter="data")
+                else:
+                    archive.extractall(staging, members=members)
+            installer = Path(staging) / ARCHIVE_INSTALLER
+            if not installer.is_file():
+                raise OSError(f"Renderer archive is missing '{ARCHIVE_INSTALLER}'")
+            self._run_installer(installer, "--install")
+        if not self._renderer_installed():
+            missing = [str(path) for path in self._renderer_files() if not path.is_file()]
+            raise OSError("MAKO Renderer installation is incomplete: " + ", ".join(missing))
+
+    def _run_installer(self, installer: Path, *arguments: str) -> None:
+        environment = self._host_environment()
+        for name in ("DISPLAY", "WAYLAND_DISPLAY"):
+            environment.pop(name, None)
+        environment.update(
+            MAKO_INSTALL_PREFIX=str(self.install_prefix),
+            MAKO_INSTALLER_ASSUME_YES="1",
+            MAKO_INSTALLER_NO_LAUNCH="1",
+        )
+        result = subprocess.run(
+            ["bash", str(installer), *arguments],
+            cwd=str(self.user_home),
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=self.INSTALLER_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if result.returncode != 0:
+            output = (result.stderr or result.stdout or "").strip()
+            raise OSError(output or f"MAKO installer exited with status {result.returncode}")
+
+    def _installed_by_plugin(self):
+        try:
+            data = json.loads(self.ownership_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        value = data.get("installed_renderer") if isinstance(data, dict) else None
+        return value if isinstance(value, bool) else None
 
     def _default_config(self) -> ProfileData:
         defaults = ConfigurationManager.get_defaults()
@@ -143,7 +162,7 @@ class InstallationService(BaseService):
                 raise
             self._remove_if_exists(self.config_file_path)
             self.log.warning(
-                f"Removed legacy lsfg-vk configuration version {error.version!r} during installation"
+                f"Removed legacy configuration version {error.version!r} during installation"
             )
             profile_data = self._default_config()
         except ValueError:
@@ -160,7 +179,7 @@ class InstallationService(BaseService):
         current_path = str(profile_data["global_config"].get("dll") or "")
         if current_path and Path(current_path).is_file():
             return False
-        dll_path = self.steam_service.find_lsfg_vk_dll()
+        dll_path = self.steam_service.find_lossless_dll()
         if dll_path and current_path != dll_path:
             profile_data["global_config"]["dll"] = dll_path
             return True
@@ -170,7 +189,7 @@ class InstallationService(BaseService):
         if not self.config_file_path.is_file():
             return
         try:
-            dll_path = self.steam_service.find_lsfg_vk_dll()
+            dll_path = self.steam_service.find_lossless_dll()
             if not dll_path:
                 return
             profile_data = ConfigurationManager.parse_toml_content_multi_profile(
@@ -182,46 +201,13 @@ class InstallationService(BaseService):
             content = ConfigurationManager.generate_toml_content_multi_profile(profile_data)
             self.runtime_service.validate_config_content(content)
             self._write_file(self.config_file_path, content, 0o644)
-            self.log.info(f"Repaired lsfg-vk DLL path: {dll_path}")
+            self.log.info(f"Repaired Lossless.dll path: {dll_path}")
         except Exception as error:
-            self.log.warning(f"Could not repair lsfg-vk DLL path: {error}")
-
-    def _remove_legacy_layer_files(self) -> None:
-        for path in (self.legacy_lib_file, self.legacy_json_file):
-            self._remove_if_exists(path)
-
-    def _prune_empty_directories(self) -> None:
-        # Only prune directories created by this plugin.  Never remove a
-        # non-empty directory because the user's other tools may use it.
-        candidates = (
-            self.config_dir,
-            self.local_bin_dir,
-            self.local_lib_dir,
-            self.local_share_dir,
-            self.user_home / LOCAL_SHARE / "applications",
-            self.user_home / LOCAL_SHARE / "icons/hicolor/256x256/apps",
-        )
-        for directory in candidates:
-            try:
-                if directory.is_dir() and not directory.is_symlink():
-                    directory.rmdir()
-                    self.log.info(f"Removed empty directory {directory}")
-            except OSError:
-                continue
+            self.log.warning(f"Could not repair Lossless.dll path: {error}")
 
     def check_installation(self) -> InstallationCheckResponse:
         try:
-            installed = all(
-                path.is_file()
-                for path in (
-                    self.cli_file,
-                    self.lib_file,
-                    self.lib_x86_file,
-                    self.json_file,
-                    self.json_x86_file,
-                    self.config_file_path,
-                )
-            )
+            installed = self._renderer_installed() and self.config_file_path.is_file()
             if installed:
                 self._repair_dll_path()
             lossless_scaling = self.runtime_service.check_lossless_scaling()
@@ -241,34 +227,30 @@ class InstallationService(BaseService):
 
     def uninstall(self) -> UninstallationResponse:
         try:
-            removed = [
-                str(path)
-                for path in (
-                    self.lib_file,
-                    self.lib_x86_file,
-                    self.json_file,
-                    self.json_x86_file,
-                    self.cli_file,
-                    self.local_bin_dir / UI_FILENAME,
-                    self.user_home / LOCAL_SHARE / "applications" / UI_DESKTOP_FILENAME,
-                    self.user_home / LOCAL_SHARE / "icons/hicolor/256x256/apps" / UI_ICON_FILENAME,
-                    self.legacy_lib_file,
-                    self.legacy_json_file,
-                    self.legacy_script_path,
-                    self.config_file_path,
-                )
-                if self._remove_if_exists(path)
-            ]
-            self._prune_empty_directories()
+            removed = []
+            if (
+                self._installed_by_plugin()
+                and self.installer_state_path.is_file()
+                and self.installed_installer_path.is_file()
+            ):
+                self._run_installer(self.installed_installer_path, "--uninstall")
+                removed.append(f"MAKO Renderer {MAKO_VERSION}")
+            for path in (self.config_file_path, self.ownership_path):
+                if self._remove_if_exists(path):
+                    removed.append(str(path))
+            try:
+                self.config_dir.rmdir()
+            except OSError:
+                pass
             if not removed:
                 return self._success_response(
                     UninstallationResponse,
-                    "No lsfg-vk files found to remove",
+                    "No plugin files found to remove",
                     removed_files=None,
                 )
             return self._success_response(
                 UninstallationResponse,
-                f"lsfg-vk uninstalled successfully. Removed {len(removed)} files.",
+                f"Uninstalled successfully. Removed {len(removed)} items.",
                 removed_files=removed,
             )
         except Exception as error:
@@ -282,10 +264,10 @@ class InstallationService(BaseService):
         try:
             result = self.uninstall()
             if not result.get("success"):
-                self.log.error(f"Error cleaning up lsfg-vk files during uninstall: {result.get('error')}")
+                self.log.error(f"Error cleaning up files during uninstall: {result.get('error')}")
                 return False
             return True
         except Exception as error:
-            self.log.error(f"Error cleaning up lsfg-vk files during uninstall: {error}")
+            self.log.error(f"Error cleaning up files during uninstall: {error}")
             self.log.error(traceback.format_exc())
             return False

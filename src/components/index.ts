@@ -1,6 +1,6 @@
 export { Content } from "./Content";
 export { ConfigurationSection } from "./ConfigurationSection";
-export { FpsMultiplierControl } from "./FpsMultiplierControl";
+export { TargetFpsControl } from "./TargetFpsControl";
 export { ConfigurationTab } from "./ConfigurationTab";
 export { ConfigFileTab } from "./ConfigFileTab";
 export { SettingsTab } from "./SettingsTab";

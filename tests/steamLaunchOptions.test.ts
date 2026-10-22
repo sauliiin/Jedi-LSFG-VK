@@ -14,11 +14,11 @@ import {
   removeWrapperLaunchOption,
 } from "../src/utils/steamLaunchOptions.ts";
 
-const wrapper = "~/.lsfg";
+const wrapper = "~/.jedi-lsfg";
 
 test("inserts one wrapper immediately before an existing command macro", () => {
   assert.deepEqual(installWrapperLaunchOption('gamemoderun %command% --profile "high quality"', wrapper), {
-    options: 'gamemoderun ~/.lsfg %command% --profile "high quality"',
+    options: 'gamemoderun ~/.jedi-lsfg %command% --profile "high quality"',
     commandTokenAdded: false,
   });
   assert.equal(hasWrapperLaunchIntegration(`gamemoderun ${wrapper} %command%`, wrapper), true);
@@ -59,15 +59,26 @@ test("preserves assignments quoting suffixes and released wrapper cleanup", () =
   const options = 'FOO="hello world" VK_INSTANCE_LAYERS="one:two" gamemoderun %command% --flag "two words"';
   assert.equal(
     installWrapperLaunchOption(options, wrapper).options,
-    'FOO="hello world" VK_INSTANCE_LAYERS="one:two" gamemoderun ~/.lsfg %command% --flag "two words"',
+    'FOO="hello world" VK_INSTANCE_LAYERS="one:two" gamemoderun ~/.jedi-lsfg %command% --flag "two words"',
   );
   assert.equal(removeWrapperLaunchOption(`${wrapper} %command% --arg "${wrapper}"`, wrapper, true), `--arg "${wrapper}"`);
   assert.equal(normalizeLaunchOptions("  FOO=bar   %COMMAND%  --flag "), "FOO=bar %COMMAND% --flag");
-  for (const token of ["~/lsfg", "/home/deck/lsfg", "mako-run", "mako-launch"]) {
+  for (const token of ["~/lsfg", "~/.lsfg", "/home/deck/lsfg", "/home/deck/.lsfg", "mako-run", "mako-launch"]) {
     assert.equal(cleanupLegacyWrapper(`FOO=bar ${token} %command% --arg "${token}"`), `FOO=bar %command% --arg "${token}"`);
   }
   assert.equal(isLegacyWrapperToken("/home/kurt/lsfg"), true);
   assert.equal(isLegacyWrapperToken("/opt/tools/lsfg"), false);
+});
+
+test("replaces another frame generation wrapper instead of chaining it", () => {
+  assert.deepEqual(installWrapperLaunchOption("gamemoderun ~/.lsfg %command%", wrapper), {
+    options: `gamemoderun ${wrapper} %command%`,
+    commandTokenAdded: false,
+  });
+  assert.deepEqual(installWrapperLaunchOption("~/.local/bin/mako-run %command% --windowed", wrapper), {
+    options: `${wrapper} %command% --windowed`,
+    commandTokenAdded: false,
+  });
 });
 
 test("removes only managed assignments and preserves unrelated values", () => {
@@ -121,8 +132,8 @@ test("uses launch options for Steam and non-Steam shortcuts without a Target API
     assert.equal(appWrites.length, 1);
 
     const shortcut = await installWrapperIntegration(43, true, wrapper);
-    assert.equal(shortcut.snapshot.options, `~/.lsfg %command% --windowed`);
-    assert.deepEqual(shortcutWrites, [`~/.lsfg %command% --windowed`]);
+    assert.equal(shortcut.snapshot.options, `~/.jedi-lsfg %command% --windowed`);
+    assert.deepEqual(shortcutWrites, [`~/.jedi-lsfg %command% --windowed`]);
 
     const restored = await removeWrapperIntegration(43, true, wrapper, shortcut.commandTokenAdded);
     assert.equal(restored.options, "--windowed");
@@ -145,15 +156,15 @@ test("AppImage EmuDeck and direct Flatpak shortcuts all stay launch-option based
   const cases = [
     {
       options: 'DESKTOPINTEGRATION=1 "/home/deck/AppImages/dusk.appimage"',
-      expected: 'DESKTOPINTEGRATION=1 ~/.lsfg %command% "/home/deck/AppImages/dusk.appimage"',
+      expected: 'DESKTOPINTEGRATION=1 ~/.jedi-lsfg %command% "/home/deck/AppImages/dusk.appimage"',
     },
     {
       options: "",
-      expected: "~/.lsfg %command%",
+      expected: "~/.jedi-lsfg %command%",
     },
     {
       options: "run org.example.Game",
-      expected: "~/.lsfg %command% run org.example.Game",
+      expected: "~/.jedi-lsfg %command% run org.example.Game",
     },
   ];
   (globalThis as Record<string, unknown>).window = { setTimeout, clearTimeout };

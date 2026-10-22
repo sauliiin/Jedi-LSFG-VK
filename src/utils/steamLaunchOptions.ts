@@ -1,7 +1,10 @@
-const DEFAULT_WRAPPER_PATH = "~/.lsfg";
+const DEFAULT_WRAPPER_PATH = "~/.jedi-lsfg";
 const COMMAND_TOKEN = "%command%";
 
+// Wrappers from decky-lsfg-vk and MAKO Decky. Leaving one next to ours would
+// re-enable a second frame generation layer, so enabling a game replaces them.
 export const LEGACY_WRAPPER_TOKENS = new Set([
+  "~/.lsfg",
   "~/lsfg",
   "~/.local/bin/lsfg",
   "~/.local/bin/lsfg-vk-experimental",
@@ -11,7 +14,7 @@ export const LEGACY_WRAPPER_TOKENS = new Set([
   "mako-launch",
 ]);
 
-const LEGACY_ABSOLUTE_WRAPPER = /^\/(?:home|Users)\/[^/]+\/(?:lsfg|\.local\/bin\/(?:lsfg|lsfg-vk-experimental|mako-run|mako-launch))$/;
+const LEGACY_ABSOLUTE_WRAPPER = /^\/(?:home|Users)\/[^/]+\/(?:\.?lsfg|\.local\/bin\/(?:lsfg|lsfg-vk-experimental|mako-run|mako-launch))$/;
 const MANAGED_ENV_KEYS = new Set([
   "ENABLE_GAMESCOPE_WSI", "DISABLE_GAMESCOPE_WSI", "DXVK_HDR", "SteamDeck",
   "DISABLE_VKBASALT", "ENABLE_VKBASALT", "MESA_LOADER_DRIVER_OVERRIDE",

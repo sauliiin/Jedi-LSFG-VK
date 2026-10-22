@@ -13,11 +13,11 @@ test("workaround sidecar source wins over current discovery metadata", () => {
 });
 
 test("configured profiles without reliable source are unknown", () => {
-  const targets = mergeGameTargets([config("456", "Missing Game")], [], []);
+  const targets = mergeGameTargets([config("456", "app:456")], [], []);
 
   assert.deepEqual(targets[0], {
     appid: "456",
-    name: "Missing Game",
+    name: "App 456",
     nonSteam: false,
     source: "unknown",
     configured: true,
