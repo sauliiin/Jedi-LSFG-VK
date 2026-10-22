@@ -20,11 +20,11 @@ export function showBranchSetupModal() {
         }}
       >
         <div style={{ fontSize: "20px", fontWeight: 600, marginBottom: "8px" }}>
-          Switch Lossless Scaling to the default branch
+          Lossless.dll was not found
         </div>
         <div style={{ lineHeight: 1.5 }}>
-          MAKO Renderer reads Lossless.dll from the default public version of Lossless Scaling.
-          Beta branches, including lsfg-vk, are not validated.
+          MAKO Renderer reads Lossless.dll from your Lossless Scaling installation. The default
+          branch and the lsfg-vk branch both include it, but the selected branch does not.
         </div>
         <ol style={{ lineHeight: 1.5, margin: "14px 0 18px", paddingLeft: "24px" }}>
           <li>Open Lossless Scaling in your Steam library.</li>

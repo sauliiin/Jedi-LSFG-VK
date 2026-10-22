@@ -215,7 +215,9 @@ class SteamService(BaseService):
             self._section_value(content, "MountedConfig", "BetaKey")
             or self._section_value(content, "UserConfig", "BetaKey")
         )
-        needs_switch = selected != STEAM_LOSSLESS_SCALING_BRANCH
+        # MAKO reads Lossless.dll, which the public and lsfg-vk branches both
+        # ship. Only a branch without it needs switching.
+        needs_switch = self.find_lossless_dll() is None
         return {
             "installed": True,
             "manifest_path": str(manifest_path),
@@ -254,7 +256,7 @@ class SteamService(BaseService):
             manifest = self._manifest_path()
             if manifest is None:
                 fields = self._missing_branch_fields()
-                fields.update(installed=True, needs_switch=True)
+                fields.update(installed=True, needs_switch=self.find_lossless_dll() is None)
                 return self._success_response(
                     dict,
                     "Lossless Scaling is installed but its Steam branch could not be determined",
@@ -262,9 +264,9 @@ class SteamService(BaseService):
                 )
             fields = self._status_fields(manifest, manifest.read_text(encoding="utf-8"))
             message = (
-                "Lossless Scaling is on the default public Steam branch"
+                f"Lossless.dll found on the {fields['selected_branch']} Steam branch"
                 if not fields["needs_switch"]
-                else "Select None in Lossless Scaling's Steam Properties > Game Versions & Betas"
+                else "Lossless.dll was not found; select None in Lossless Scaling's Steam Properties > Game Versions & Betas"
             )
             return self._success_response(dict, message, **fields)
         except Exception as error:

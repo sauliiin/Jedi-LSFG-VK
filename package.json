@@ -1,6 +1,6 @@
 {
   "name": "jedi-lsfg-vk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Adaptive Lossless Scaling frame generation with a single target FPS, powered by MAKO Renderer",
   "type": "module",
   "scripts": {

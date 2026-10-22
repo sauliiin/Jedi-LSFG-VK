@@ -71,7 +71,7 @@ export function SettingsTab(props: SettingsTabProps) {
               <div style={{ fontWeight: 600 }}>Setup incomplete</div>
               <div style={{ marginTop: "6px", lineHeight: 1.35 }}>
                 {branchSetupIncomplete ? (
-                  <>Lossless Scaling is on <strong>{selectedBranch}</strong>. Select the <strong>{targetBranch}</strong> branch before launching games.</>
+                  <>Lossless.dll was not found on the <strong>{selectedBranch}</strong> branch. Select the <strong>{targetBranch}</strong> branch before launching games.</>
                 ) : (
                   <>Lossless Scaling is installed, but its Lossless.dll is not ready yet.</>
                 )}

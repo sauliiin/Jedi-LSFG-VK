@@ -31,7 +31,7 @@ FLATPAK_BUNDLE_SHA256 = "0aff4bc63cf8241ca26375dbd4c1d52168766d8f7914e2670331e25
 
 LOSSLESS_DLL_FILENAME = "Lossless.dll"
 STEAM_LOSSLESS_SCALING_APP_ID = "993090"
-# MAKO validates Lossless.dll from the default public branch.
+# Suggested branch when Lossless.dll is missing; any branch that ships it works.
 STEAM_LOSSLESS_SCALING_BRANCH = "public"
 
 # Launch-time variables shared by the Steam wrapper and Flatpak overrides.

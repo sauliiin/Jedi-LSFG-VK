@@ -93,8 +93,12 @@ class LosslessScalingBranchTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_public_branch_needs_no_switch(self):
+    def _install_dll(self):
+        (self.steamapps / "common/Lossless Scaling/Lossless.dll").write_text("dll", encoding="utf-8")
+
+    def test_public_branch_with_dll_needs_no_switch(self):
         self._manifest()
+        self._install_dll()
 
         status = self.service.get_branch_status()
 
@@ -102,7 +106,16 @@ class LosslessScalingBranchTests(unittest.TestCase):
         self.assertEqual(status["selected_branch"], "public")
         self.assertFalse(status["needs_switch"])
 
-    def test_lsfg_vk_beta_must_switch_back_to_public(self):
+    def test_lsfg_vk_branch_with_dll_needs_no_switch(self):
+        self._manifest("lsfg-vk")
+        self._install_dll()
+
+        status = self.service.get_branch_status()
+
+        self.assertEqual(status["selected_branch"], "lsfg-vk")
+        self.assertFalse(status["needs_switch"])
+
+    def test_branch_without_dll_must_switch(self):
         self._manifest("lsfg-vk")
 
         status = self.service.get_branch_status()

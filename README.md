@@ -21,18 +21,17 @@ A base de metade do alvo e o limite de 4x são automáticos e não aparecem na t
 
 Dica: use um alvo igual ou menor que a taxa de atualização da tela (60 Hz no Steam Deck LCD, até 90 Hz no OLED). Frames acima disso não aparecem e só gastam GPU.
 
-## Por que a versão estável
+## Qual versão do Lossless Scaling usar
 
-O plugin usa sempre versões estáveis, nunca betas:
+Qualquer uma que traga a `Lossless.dll`: a branch padrão da Steam e a branch `lsfg-vk` (a versão para Linux) funcionam. O plugin acha a DLL sozinho e só pede para trocar de branch se ela não for encontrada.
 
-- **Lossless Scaling na branch padrão (estável) da Steam.** Os arquivos de geração de frames são lidos da `Lossless.dll` da versão pública do Lossless Scaling, que é a versão testada com o renderizador. As branches beta, incluindo a `lsfg-vk`, mudam sem aviso e não são validadas, então podem quebrar a geração de frames de uma atualização para outra. Se o Lossless Scaling estiver numa beta, o plugin mostra como voltar para a estável.
-- **Renderizador em versão estável e fixa.** O plugin instala o [MAKO Renderer](https://github.com/eugeniosegala/MAKO) 4.6.0, uma release estável, com o arquivo conferido por checksum. Ele é que permite o FPS alvo: a camada do lsfg-vk 2.0 só trabalha com multiplicadores inteiros e não tem modo adaptativo.
+O que gera os frames é o [MAKO Renderer](https://github.com/eugeniosegala/MAKO) 4.6.0, numa release estável instalada pelo plugin e conferida por checksum. Ele é que permite o FPS alvo: a camada do lsfg-vk 2.0 só trabalha com multiplicadores inteiros e não tem modo adaptativo.
 
 ## Instalação
 
 1. Baixe o arquivo **Jedi LSFG-VK.zip** na página de [Releases](https://github.com/sauliiin/Jedi-LSFG-VK/releases).
 2. No Game Mode, abra as configurações do Decky, ative o **Developer Mode** e use **Developer → Install Plugin from Zip**.
-3. Instale o [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) pela Steam e deixe na branch padrão: Propriedades → Versões do jogo e betas → **Nenhuma**.
+3. Instale o [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) pela Steam. Funciona na branch padrão e na branch `lsfg-vk`.
 4. Abra o plugin e toque em **Install MAKO Renderer**.
 
 ## Como usar
@@ -68,4 +67,4 @@ Apps Flatpak são ativados na aba **Flatpak**. Na primeira vez, o plugin baixa a
 
 ## English summary
 
-Jedi LSFG-VK is a Decky Loader plugin with a single control: the **target FPS**. The game is capped at half the target, and frame generation fills the gap in small fractional steps (2.1x, 2.2x, 2.3x…) up to 4x. The base cap and the 4x ceiling are automatic and hidden. It uses only stable releases: Lossless Scaling on its default Steam branch and the pinned stable MAKO Renderer 4.6.0. Install the ZIP from Releases through **Developer → Install Plugin from Zip**, then select **Install MAKO Renderer** in the plugin.
+Jedi LSFG-VK is a Decky Loader plugin with a single control: the **target FPS**. The game is capped at half the target, and frame generation fills the gap in small fractional steps (2.1x, 2.2x, 2.3x…) up to 4x. The base cap and the 4x ceiling are automatic and hidden. It reads Lossless.dll from Lossless Scaling (default or lsfg-vk Steam branch) and uses the pinned stable MAKO Renderer 4.6.0. Install the ZIP from Releases through **Developer → Install Plugin from Zip**, then select **Install MAKO Renderer** in the plugin.
