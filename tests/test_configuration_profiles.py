@@ -78,8 +78,15 @@ swapchain_image_count_compatibility = true
         self.assertIn("adaptive_max_multiplier = 4\n", rendered)
         self.assertNotIn("multiplier = 2", rendered.replace("adaptive_max_multiplier", ""))
 
+    def test_saved_target_above_limit_is_clamped_on_read(self):
+        parsed = ConfigurationManager.parse_toml_content_multi_profile(
+            'version = 2\n\n[[profile]]\nname = "app:1"\ntarget_fps = 240\n'
+        )
+
+        self.assertEqual(parsed["profiles"]["app:1"]["target_fps"], 120)
+
     def test_target_fps_outside_slider_range_is_rejected(self):
-        for value in (29, 241, True):
+        for value in (29, 121, True):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 ConfigurationManager.validate_config({"target_fps": value})
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuickAccessVisible } from "@decky/api";
 import {
   enableFlatpakApp,
   getFlatpakApps,
@@ -26,6 +27,7 @@ export function useFlatpakConfiguration(enabled: boolean) {
   const [runningApps, setRunningApps] = useState<RunningFlatpakApp[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyAppId, setBusyAppId] = useState("");
+  const quickAccessVisible = useQuickAccessVisible();
 
   const reload = useCallback(async () => {
     if (!enabled) {
@@ -59,12 +61,18 @@ export function useFlatpakConfiguration(enabled: boolean) {
     void reload();
   }, [reload]);
 
+  // The running app only feeds the Now Playing tab, so nothing is polled
+  // while the menu is closed and the game has the CPU to itself.
   useEffect(() => {
+    if (!enabled) {
+      void pollRunning();
+      return;
+    }
+    if (!quickAccessVisible) return;
     void pollRunning();
-    if (!enabled) return;
     const interval = window.setInterval(() => void pollRunning(), 2000);
     return () => window.clearInterval(interval);
-  }, [enabled, pollRunning]);
+  }, [enabled, pollRunning, quickAccessVisible]);
 
   const operate = useCallback(async (
     appId: string,

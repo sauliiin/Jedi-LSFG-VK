@@ -19,7 +19,11 @@ Em vez de escolher um multiplicador fixo (2x, 3x, 4x), você define o **FPS alvo
 
 A base de metade do alvo e o limite de 4x são automáticos e não aparecem na tela. A única coisa que você ajusta é o FPS alvo, e a mudança vale na hora, com o jogo rodando.
 
-Dica: use um alvo igual ou menor que a taxa de atualização da tela (60 Hz no Steam Deck LCD, até 90 Hz no OLED). Frames acima disso não aparecem e só gastam GPU.
+O alvo vai de 30 a 120 FPS. Use um valor igual ou menor que a taxa de atualização da tela (60 Hz no Steam Deck LCD, até 90 Hz no OLED): frames acima disso não aparecem e só sobrecarregam a fila de apresentação.
+
+## Leve durante o jogo
+
+Com o menu do Decky fechado, o plugin não faz nenhum trabalho em segundo plano: não consulta o backend, não lê arquivos e não abre processos. A verificação de jogos e apps Flatpak em execução só acontece com o menu aberto, e lê as configurações do Flatpak direto do disco, sem chamar o comando `flatpak` para cada app.
 
 ## Qual versão do Lossless Scaling usar
 
@@ -38,7 +42,7 @@ O que gera os frames é o [MAKO Renderer](https://github.com/eugeniosegala/MAKO)
 
 1. Na aba **Steam** ou **Non-Steam**, escolha um jogo.
 2. Toque em **Enable for next launch**. O plugin adiciona `~/.jedi-lsfg %command%` às opções de inicialização do jogo.
-3. Ajuste o **Target FPS**.
+3. Ajuste o **Target FPS** (30 a 120).
 
 Apps Flatpak são ativados na aba **Flatpak**. Na primeira vez, o plugin baixa a extensão Flatpak do renderizador (cerca de 120 MB).
 

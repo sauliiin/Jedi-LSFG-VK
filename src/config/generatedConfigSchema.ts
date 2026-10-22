@@ -8,7 +8,7 @@ export const PERFORMANCE_MODE = "performance_mode" as const;
 export const PRESERVE_SWAPCHAIN_IMAGE_COUNT = "preserve_swapchain_image_count" as const;
 
 export const TARGET_FPS_MIN = 30;
-export const TARGET_FPS_MAX = 240;
+export const TARGET_FPS_MAX = 120;
 
 export interface ConfigField { name: string; fieldType: ConfigFieldType; default: boolean | number | string | string[]; description: string; }
 export interface ConfigurationData {

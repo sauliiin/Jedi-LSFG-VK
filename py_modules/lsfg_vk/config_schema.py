@@ -31,7 +31,10 @@ class UnsupportedConfigurationVersion(ValueError):
 
 
 TARGET_FPS_MIN = 30
-TARGET_FPS_MAX = 240
+# In Adaptive mode MAKO does not drop outputs the display cannot show, so a
+# target above the panel only adds FIFO backpressure. 120 covers handheld
+# panels and common docked displays.
+TARGET_FPS_MAX = 120
 ADAPTIVE_MAX_MULTIPLIER = 4
 
 PROFILE_DEFAULTS: Dict[str, Any] = {
@@ -159,6 +162,8 @@ class ConfigurationManager:
                 for key in ("target_fps", "flow_scale", "performance_mode")
                 if key in profile
             }
+            if isinstance(raw.get("target_fps"), int) and not isinstance(raw["target_fps"], bool):
+                raw["target_fps"] = min(max(raw["target_fps"], TARGET_FPS_MIN), TARGET_FPS_MAX)
             if "swapchain_image_count_compatibility" in profile:
                 raw["preserve_swapchain_image_count"] = profile["swapchain_image_count_compatibility"]
             profiles[name] = ConfigurationManager.validate_config({**raw, **global_config})

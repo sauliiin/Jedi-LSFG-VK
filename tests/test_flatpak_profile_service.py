@@ -39,6 +39,10 @@ class FakeFlatpakService:
     def _reset_app_override(self, app_id):
         self._override_path(app_id).unlink(missing_ok=True)
 
+    def read_override(self, app_id):
+        path = self._override_path(app_id)
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+
     def _process_start_time(self, pid):
         return self.start_times.get(pid)
 
@@ -212,6 +216,20 @@ class FlatpakProfileServiceTests(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(result["apps"], [{"app_id": self.app_id, "active": True, "pid": "1234", "start_time": 200}])
+
+    def test_running_poll_spawns_only_flatpak_ps(self):
+        self.assertTrue(self.service.enable_app(self.app_id)["success"])
+        self.flatpak.commands.clear()
+
+        self.service.get_running_apps()
+
+        self.assertEqual([args[0] for args in self.flatpak.commands], ["ps"])
+
+    def test_running_poll_without_enabled_apps_spawns_nothing(self):
+        result = self.service.get_running_apps()
+
+        self.assertTrue(result["success"])
+        self.assertEqual(self.flatpak.commands, [])
 
     def test_process_start_time_parser_handles_parentheses_in_command_name(self):
         fields = ["S"] + ["0"] * 18 + ["4242"]

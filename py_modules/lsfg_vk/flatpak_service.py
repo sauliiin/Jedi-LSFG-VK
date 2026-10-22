@@ -351,13 +351,15 @@ class FlatpakService(BaseService):
                 enabled = True
         return enabled
 
+    def read_override(self, app_id: str) -> str:
+        """User override keyfile, read directly instead of spawning flatpak."""
+        try:
+            return self._override_path(app_id).read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
     def _app_override_status(self, app_id: str) -> Dict[str, object]:
-        result = self._run_flatpak_command(
-            ["override", "--user", "--show", app_id],
-            capture_output=True,
-            text=True,
-        )
-        output = result.stdout if result.returncode == 0 else ""
+        output = self.read_override(app_id)
         section = None
         filesystems = ""
         environment = {}

@@ -266,12 +266,9 @@ class FlatpakProfileService:
                 profile = self.configuration_service.flatpak_profile_name(app_id)
                 selector_ready = False
                 if item.get("prepared"):
-                    shown = self.flatpak_service._run_flatpak_command(
-                        ["override", "--user", "--show", app_id],
-                        capture_output=True,
-                        text=True,
-                    )
-                    selector_ready = shown.returncode == 0 and f"{self.PROFILE_ENV}={profile}" in shown.stdout.splitlines()
+                    selector_ready = self._environment_value(
+                        self.flatpak_service.read_override(app_id), self.PROFILE_ENV
+                    ) == profile
                 apps.append({
                     **item,
                     "profile": profile,
@@ -291,20 +288,18 @@ class FlatpakProfileService:
     def get_running_apps(self) -> Dict[str, Any]:
         try:
             state = self.flatpak_service._read_state()
+            if not state["prepared_apps"]:
+                return {"success": True, "message": "", "error": None, "apps": []}
+            profiles = self.configuration_service._get_profile_data()["profiles"]
             enabled = set()
             for app_id, entry in state["prepared_apps"].items():
                 if not isinstance(entry, dict):
                     continue
-                config = self.configuration_service.get_flatpak_config(app_id)
-                if not config.get("exists"):
-                    continue
-                shown = self.flatpak_service._run_flatpak_command(
-                    ["override", "--user", "--show", app_id],
-                    capture_output=True,
-                    text=True,
-                )
                 profile = self.configuration_service.flatpak_profile_name(app_id)
-                if shown.returncode == 0 and self._environment_value(shown.stdout, self.PROFILE_ENV) == profile:
+                if profile not in profiles:
+                    continue
+                override = self.flatpak_service.read_override(app_id)
+                if self._environment_value(override, self.PROFILE_ENV) == profile:
                     enabled.add(app_id)
             if not enabled:
                 return {"success": True, "message": "", "error": None, "apps": []}

@@ -91,6 +91,7 @@ export function useGameConfiguration() {
   }, [load, quickAccessVisible]);
 
   useEffect(() => {
+    if (!quickAccessVisible) return;
     const poll = () => {
       if (!configsLoaded) return;
       const app = Router.MainRunningApp as any;
@@ -120,7 +121,7 @@ export function useGameConfiguration() {
     poll();
     const interval = window.setInterval(poll, 2000);
     return () => window.clearInterval(interval);
-  }, [configsLoaded, games, installedGames, workaroundApps]);
+  }, [configsLoaded, games, installedGames, quickAccessVisible, workaroundApps]);
 
   useEffect(() => {
     const appid = runningGame?.appid || null;
