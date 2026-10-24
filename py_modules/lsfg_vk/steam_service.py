@@ -1,4 +1,5 @@
 import re
+import zlib
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -107,28 +108,41 @@ class SteamService(BaseService):
                 else:
                     raise ValueError(f"unsupported binary VDF type {value_type}")
                 values[key] = value
-            raise ValueError("unterminated binary VDF object")
+            # Shortcut tools do not always write the closing markers; keep
+            # every entry read so far instead of dropping the whole file.
+            return values, offset
 
-        values, offset = read_object()
-        if offset != len(data):
-            raise ValueError("trailing binary VDF data")
+        values, _ = read_object()
         return values
 
     @staticmethod
-    def _shortcut_game(shortcut: object) -> Optional[Dict[str, object]]:
+    def shortcut_appid(executable: str, name: str) -> int:
+        """AppID Steam derives for a shortcut that does not store one."""
+        return (zlib.crc32((executable + name).encode("utf-8")) & 0xFFFFFFFF) | 0x80000000
+
+    @classmethod
+    def _shortcut_game(cls, shortcut: object) -> Optional[Dict[str, object]]:
         if not isinstance(shortcut, dict):
             return None
-        appid = shortcut.get("appid")
-        name = shortcut.get("AppName") or shortcut.get("appname")
-        if not isinstance(appid, int) or appid == 0 or not isinstance(name, str) or not name:
+        # Steam writes AppName/Exe, while shortcut tools often use lowercase keys.
+        fields = {str(key).lower(): value for key, value in shortcut.items()}
+        name = fields.get("appname")
+        if not isinstance(name, str) or not name.strip():
             return None
+        name = name.strip()
+        executable = fields.get("exe")
+        executable = executable.strip() if isinstance(executable, str) else ""
+        appid = fields.get("appid")
+        if not isinstance(appid, int) or appid == 0:
+            if not executable:
+                return None
+            appid = cls.shortcut_appid(executable, name)
         game = {
             "appid": str(appid & 0xFFFFFFFF),
             "name": name,
             "nonSteam": True,
         }
-        executable = shortcut.get("Exe") or shortcut.get("exe")
-        if isinstance(executable, str) and executable.strip().strip('"') in {"flatpak", "/usr/bin/flatpak"}:
+        if executable.strip('"') in {"flatpak", "/usr/bin/flatpak"}:
             game["isFlatpakShortcut"] = True
         return game
 
@@ -137,8 +151,10 @@ class SteamService(BaseService):
         for root in self._steam_roots():
             for path in sorted((root / "userdata").glob("*/config/shortcuts.vdf")):
                 try:
-                    shortcuts = self._read_shortcuts(path.read_bytes()).get("shortcuts", {})
-                except (OSError, ValueError):
+                    root_values = self._read_shortcuts(path.read_bytes())
+                    shortcuts = root_values.get("shortcuts") or root_values.get("Shortcuts") or {}
+                except (OSError, ValueError) as error:
+                    self.log.warning(f"Could not read non-Steam shortcuts from {path}: {error}")
                     continue
                 if not isinstance(shortcuts, dict):
                     continue

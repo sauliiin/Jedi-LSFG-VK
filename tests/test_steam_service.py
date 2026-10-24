@@ -2,6 +2,7 @@ import sys
 import tempfile
 import types
 import unittest
+import zlib
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -71,6 +72,34 @@ class SteamShortcutTests(unittest.TestCase):
         self.assertIsNone(SteamService._shortcut_game({"appid": 0, "AppName": "Bad"}))
         self.assertIsNone(SteamService._shortcut_game({"appid": 1, "AppName": ""}))
         self.assertIsNone(SteamService._shortcut_game("bad"))
+
+    def test_shortcut_keys_are_case_insensitive(self):
+        game = SteamService._shortcut_game({"AppId": -559038737, "appname": "Tool Game", "exe": "game"})
+
+        self.assertEqual(game, {"appid": "3735928559", "name": "Tool Game", "nonSteam": True})
+
+    def test_shortcut_without_appid_uses_steam_derived_appid(self):
+        exe = '"/home/deck/Games/Game/Game.exe"'
+        game = SteamService._shortcut_game({"AppName": "Game", "Exe": exe})
+
+        expected = (zlib.crc32((exe + "Game").encode("utf-8")) & 0xFFFFFFFF) | 0x80000000
+        self.assertEqual(game["appid"], str(expected))
+        self.assertIsNone(SteamService._shortcut_game({"AppName": "No identity"}))
+
+    def test_unterminated_shortcuts_file_keeps_the_entries_read(self):
+        def string(key, value):
+            return b"\x01" + key.encode() + b"\0" + value.encode() + b"\0"
+
+        def int32(key, value):
+            return b"\x02" + key.encode() + b"\0" + value.to_bytes(4, "little", signed=True)
+
+        entry = b"\x00" + b"0\0" + int32("appid", -559038737) + string("AppName", "Game") + b"\x08"
+        # No closing markers for the shortcuts map or the root.
+        data = b"\x00shortcuts\0" + entry
+
+        shortcuts = SteamService._read_shortcuts(data)["shortcuts"]
+
+        self.assertEqual(SteamService._shortcut_game(shortcuts["0"])["appid"], "3735928559")
 
 
 class LosslessScalingBranchTests(unittest.TestCase):

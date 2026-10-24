@@ -84,6 +84,18 @@ export interface GameConfigsResult extends ApiResult {
   games?: GameConfigEntry[];
 }
 
+export interface PluginUpdateStatus extends ApiResult {
+  plugin_name?: string;
+  installed_version: string;
+  latest_version?: string | null;
+  update_available: boolean;
+  url?: string;
+  size?: number;
+  sha256?: string;
+  notes?: string;
+  release_url?: string;
+}
+
 export interface GlobalConfigResult extends ApiResult {
   global_config?: GlobalConfig;
 }
@@ -153,6 +165,7 @@ export interface FlatpakAppResult extends ApiResult, Partial<FlatpakApp> {
 export const installLsfgVk = callable<[], InstallationResult>("install_lsfg_vk");
 export const uninstallLsfgVk = callable<[], InstallationResult>("uninstall_lsfg_vk");
 export const checkLsfgVkInstalled = callable<[], InstallationStatus>("check_lsfg_vk_installed");
+export const getPluginUpdateStatus = callable<[boolean], PluginUpdateStatus>("get_plugin_update_status");
 export const getLosslessScalingBranchStatus = callable<[], SteamBranchStatus>("get_lossless_scaling_branch_status");
 export const getConfigFileContent = callable<[], FileContentResult>("get_config_file_content");
 export const getFlatpakApps = callable<[], FlatpakAppsResult>("get_flatpak_apps");

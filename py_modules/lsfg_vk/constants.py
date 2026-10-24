@@ -1,3 +1,5 @@
+import re
+
 LOCAL_PREFIX = ".local"
 LOCAL_BIN = ".local/bin"
 LOCAL_LIB = ".local/lib"
@@ -38,3 +40,7 @@ STEAM_LOSSLESS_SCALING_BRANCH = "public"
 COMPETING_LSFG_DISABLE_ENVS = ("DISABLE_LSFG", "DISABLE_LSFGVK")
 
 BIN_DIR = "bin"
+
+# Plugin self-update. GitHub replaces the space in "Jedi LSFG-VK.zip" with a dot.
+PLUGIN_RELEASES_API = "https://api.github.com/repos/sauliiin/Jedi-LSFG-VK/releases?per_page=20"
+PLUGIN_RELEASE_ASSET_RE = re.compile(r"Jedi[ ._-]LSFG-VK(?:-v?\d+(?:\.\d+)*)?\.zip")

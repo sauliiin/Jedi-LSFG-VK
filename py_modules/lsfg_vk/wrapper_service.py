@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from .base_service import BaseService
 from .configuration import ConfigurationService
-from .constants import WRAPPER_FILENAME
+from .constants import COMPETING_LSFG_DISABLE_ENVS, WRAPPER_FILENAME
 
 
 class WrapperService(BaseService):
@@ -16,8 +16,8 @@ class WrapperService(BaseService):
     MARKER = "# jedi-lsfg-wrapper-format: 1"
     WRAPPER_TOKEN = f"~/{WRAPPER_FILENAME}"
     # dxvkFrameRate, disableGamescopeWsi, disableHdr and disableVkbasalt are
-    # kept for state compatibility only: MAKO's base FPS cap replaces the DXVK
-    # cap, and mako-launch always owns Gamescope WSI, HDR exposure and vkBasalt.
+    # kept for state compatibility only: the plugin never caps real frames, and
+    # mako-launch always owns Gamescope WSI, HDR exposure and vkBasalt.
     STATE_FIELDS = (
         "dxvkFrameRate",
         "disableGamescopeWsi",
@@ -153,8 +153,11 @@ class WrapperService(BaseService):
             "    export MAKO_CONFIG",
             f"    MAKO_PROFILE={self._shell(ConfigurationService.game_profile_name(appid))}",
             "    export MAKO_PROFILE",
-            "    use_mako=1",
         ])
+        # A second frame generation layer on the same swapchain breaks MAKO.
+        for name in COMPETING_LSFG_DISABLE_ENVS:
+            lines.extend([f"    {name}=1", f"    export {name}"])
+        lines.append("    use_mako=1")
         if state["disableSteamdeckMode"]:
             lines.extend(["    SteamDeck=0", "    export SteamDeck"])
         if state["enableZink"]:
@@ -168,33 +171,40 @@ class WrapperService(BaseService):
             ])
         return lines
 
+    @staticmethod
+    def _game_ids(appid: str) -> list[str]:
+        """Values Steam may export for an AppID.
+
+        A shortcut's 64-bit GameID keeps its AppID in the upper half and the
+        shortcut type in the lower half; some launch paths, and UMU, export
+        only that form.
+        """
+        value = int(appid)
+        return [appid, str((value << 32) | 0x02000000)] if value & 0x80000000 else [appid]
+
     def _render_wrapper(self, document: Dict[str, Any]) -> str:
         launcher = self._shell(str(self.launcher_path))
+        appids = sorted(document["apps"], key=lambda value: int(value))
         lines = [
             "#!/bin/sh",
             self.MARKER,
             "",
             "appid=",
             "use_mako=",
-            'case "${SteamAppId-}" in',
-            "  ''|*[!0-9]*) ;;",
-            '  *) appid="${SteamAppId}" ;;',
-            "esac",
-            'if [ -z "$appid" ]; then',
-            '  case "${SteamGameId-}" in',
-            "    ''|*[!0-9]*) ;;",
-            '    *) appid="${SteamGameId}" ;;',
-            "  esac",
-            "fi",
-            'if [ -z "$appid" ]; then',
-            '  case "${STEAM_COMPAT_APP_ID-}" in',
-            "    ''|*[!0-9]*) ;;",
-            '    *) appid="${STEAM_COMPAT_APP_ID}" ;;',
-            "  esac",
-            "fi",
-            'case "$appid" in',
+            # Steam does not fill these the same way for every launch path, so
+            # take the first one that names an enabled game.
+            'for candidate in "${SteamAppId-}" "${SteamGameId-}" "${STEAM_COMPAT_APP_ID-}" "${UMU_STEAM_GAME_ID-}"; do',
+            '  case "$candidate" in',
         ]
-        for appid in sorted(document["apps"], key=lambda value: int(value)):
+        for appid in appids:
+            lines.append(f"    {'|'.join(self._game_ids(appid))}) appid={appid} ;;")
+        lines.extend([
+            "  esac",
+            '  if [ -n "$appid" ]; then break; fi',
+            "done",
+            'case "$appid" in',
+        ])
+        for appid in appids:
             lines.append(f"  {appid})")
             lines.extend(self._state_lines(appid, document["apps"][appid]["state"]))
             lines.append("    ;;")

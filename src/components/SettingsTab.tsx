@@ -2,6 +2,7 @@ import { ButtonItem, DialogButton, Field, PanelSection, PanelSectionRow, ToggleF
 import { type GlobalConfig, type SteamBranchStatus } from "../api/lsfgApi";
 import t from "../i18n/i18n";
 import { showBranchSetupModal } from "./BranchSetupModal";
+import { PluginUpdateSection } from "./PluginUpdateSection";
 
 interface SettingsTabProps {
   isInstalled: boolean;
@@ -136,6 +137,7 @@ export function SettingsTab(props: SettingsTabProps) {
           </PanelSection>
         </>
       )}
+      <PluginUpdateSection />
     </>
   );
 }

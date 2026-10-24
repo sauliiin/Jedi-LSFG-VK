@@ -91,9 +91,10 @@ class WrapperServiceTests(unittest.TestCase):
         self.assertEqual(values["__GLX_VENDOR_LIBRARY_NAME"], "mesa")
         self.assertEqual(values["MESA_LOADER_DRIVER_OVERRIDE"], "zink")
         self.assertEqual(values["GALLIUM_DRIVER"], "zink")
-        # MAKO's half-target base cap replaces the DXVK frame cap.
         self.assertEqual(values["DXVK_CONFIG"], "dxgi.syncInterval = 0")
         self.assertEqual(values["MANGOHUD"], "1")
+        self.assertEqual(values["DISABLE_LSFG"], "1")
+        self.assertEqual(values["DISABLE_LSFGVK"], "1")
         self.assertNotIn("MAKO_PROFILE_FALLBACK", values)
         self.assertNotIn("MAKO_ENV", values)
 
@@ -156,6 +157,37 @@ class WrapperServiceTests(unittest.TestCase):
         self.assertEqual(passthrough_values["DXVK_HDR"], "1")
         self.assertNotIn("VIA_MAKO_LAUNCH", passthrough_values)
         self.assertNotIn("MAKO_PROFILE", passthrough_values)
+
+    def test_shortcut_matches_through_any_steam_identity(self):
+        shortcut = 3735928559  # 0xDEADBEEF: shortcut AppIDs have the top bit set.
+        self.service.set(str(shortcut), self._state(), non_steam=True)
+        packed = str((shortcut << 32) | 0x02000000)
+
+        for env in (
+            {"SteamAppId": "0", "SteamGameId": packed},
+            {"SteamAppId": "", "STEAM_COMPAT_APP_ID": str(shortcut)},
+            {"SteamAppId": "0", "UMU_STEAM_GAME_ID": packed},
+        ):
+            with self.subTest(env=env):
+                result = subprocess.run(
+                    [str(self.service.wrapper_path), "/usr/bin/env"],
+                    env={"PATH": "/usr/bin:/bin", **env},
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                values = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+                self.assertEqual(values["VIA_MAKO_LAUNCH"], "1")
+                self.assertEqual(values["MAKO_PROFILE"], f"app:{shortcut}")
+                self.assertEqual(values["SteamAppId"], str(shortcut))
+
+    def test_wrapper_without_games_is_valid_passthrough(self):
+        self.assertEqual(
+            subprocess.run(["/bin/sh", "-n", "/dev/stdin"], input=self.service._render_wrapper(
+                {"version": 1, "apps": {}},
+            ), text=True).returncode,
+            0,
+        )
 
     def test_invalid_state_and_foreign_wrapper_fail_closed(self):
         invalid = self.service.set("0", self.service.default_state())

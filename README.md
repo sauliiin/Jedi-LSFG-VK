@@ -39,6 +39,10 @@ O que gera os frames é o [MAKO Renderer](https://github.com/eugeniosegala/MAKO)
 3. Instale o [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) pela Steam. Funciona na branch padrão e na branch `lsfg-vk`.
 4. Abra o plugin e toque em **Install MAKO Renderer**.
 
+### Atualizações
+
+O plugin confere os releases do GitHub quando carrega. Se houver uma versão nova, aparece um aviso: toque nele, ou em **Settings → Plugin update → Update**, e confirme no Decky. O Decky baixa a versão nova, confere o checksum e recarrega o plugin. A conferência é feita uma vez ao carregar e ao abrir a aba Settings, nunca durante o jogo.
+
 ## Como usar
 
 1. Na aba **Steam** ou **Non-Steam**, escolha um jogo.
@@ -72,4 +76,4 @@ Apps Flatpak são ativados na aba **Flatpak**. Na primeira vez, o plugin baixa a
 
 ## English summary
 
-Jedi LSFG-VK is a Decky Loader plugin with a single control: the **target FPS** (60–120). The target is a floor, not a cap: a game that runs above it is shown at its native FPS, and frame generation only fills the gap below it, in small fractional steps up to 4x. Every 3 seconds MAKO checks whether the game can run faster on its own and reduces generation when it can. These rules are automatic and hidden. It reads Lossless.dll from Lossless Scaling (default or lsfg-vk Steam branch) and uses the pinned stable MAKO Renderer 4.6.0. Install the ZIP from Releases through **Developer → Install Plugin from Zip**, then select **Install MAKO Renderer** in the plugin.
+Jedi LSFG-VK is a Decky Loader plugin with a single control: the **target FPS** (60–120). The target is a floor, not a cap: a game that runs above it is shown at its native FPS, and frame generation only fills the gap below it, in small fractional steps up to 4x. Every 3 seconds MAKO checks whether the game can run faster on its own and reduces generation when it can. These rules are automatic and hidden. It reads Lossless.dll from Lossless Scaling (default or lsfg-vk Steam branch) and uses the pinned stable MAKO Renderer 4.6.0. Install the ZIP from Releases through **Developer → Install Plugin from Zip**, then select **Install MAKO Renderer** in the plugin. From 1.2.0 on, the plugin checks GitHub when it loads and updates itself through Decky's installer after you confirm.

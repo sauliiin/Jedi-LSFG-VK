@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict
 
 import decky
@@ -8,6 +9,7 @@ from .flatpak_service import FlatpakService
 from .installation import InstallationService
 from .runtime_service import RuntimeService
 from .steam_service import SteamService
+from .update_service import UpdateService
 from .wrapper_service import WrapperService
 
 
@@ -26,6 +28,7 @@ class Plugin:
             self.configuration_service,
         )
         self.wrapper_service = WrapperService()
+        self.update_service = UpdateService()
 
     async def install_lsfg_vk(self):
         return self.installation_service.install()
@@ -180,6 +183,10 @@ class Plugin:
 
     async def get_running_flatpak_apps(self):
         return self.flatpak_profile_service.get_running_apps()
+
+    async def get_plugin_update_status(self, force: bool = False):
+        # The GitHub request must not block Decky's event loop.
+        return await asyncio.to_thread(self.update_service.status, bool(force))
 
     async def _main(self):
         repair = self.wrapper_service.repair()
