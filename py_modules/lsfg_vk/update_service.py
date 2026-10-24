@@ -1,17 +1,21 @@
 """Plugin self-update: the newest GitHub release of this plugin.
 
-The backend only finds the release. The frontend hands its ZIP to Decky's own
-installer, which asks to confirm, verifies the SHA-256, installs it and
-reloads the plugin.
+The backend finds the release and writes its ZIP over the plugin; the frontend
+then asks Decky to reload it. Decky's own install prompt opens in the main
+window and never showed from the Quick Access menu.
 """
 
+import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -24,6 +28,7 @@ from .constants import PLUGIN_RELEASE_ASSET_RE, PLUGIN_RELEASES_API
 class UpdateService(BaseService):
     CACHE_SECONDS = 600
     REQUEST_TIMEOUT_SECONDS = 10
+    DOWNLOAD_TIMEOUT_SECONDS = 600
 
     def __init__(self, logger=None):
         super().__init__(logger)
@@ -128,3 +133,109 @@ class UpdateService(BaseService):
             "update_available": update_available,
             **({key: latest[key] for key in ("url", "size", "sha256", "notes", "release_url")} if latest else {}),
         }
+
+    def install(self) -> Dict[str, Any]:
+        """Install the newest release over this plugin; Decky reloads it afterwards."""
+        status = self.status(force=True)
+        if not status.get("success"):
+            return status
+        if not status.get("update_available"):
+            return {"success": False, "error": "No newer release to install."}
+        try:
+            changed = self._apply_release(status, Path(getattr(decky, "DECKY_PLUGIN_DIR", "")))
+        except Exception as error:
+            self.log.error(f"Plugin update failed: {error}")
+            return {"success": False, "error": str(error)}
+        self.log.info(f"Plugin updated {status['installed_version']} -> {status['latest_version']}: {changed}")
+        return {
+            "success": True,
+            "error": None,
+            "plugin_name": status["plugin_name"],
+            "version": status["latest_version"],
+        }
+
+    def _apply_release(self, release: Dict[str, Any], plugin_dir: Path) -> list:
+        """Write the release ZIP over the plugin. Decky owns the plugin folder itself (only files already
+        in it can be replaced), so nothing is written until every changed file is known to be writable,
+        the ZIP matches GitHub's SHA-256 and the new package.json's remote binaries are in bin/."""
+        if not release.get("sha256"):
+            raise OSError("GitHub gave no SHA-256 for the release ZIP")
+        if not (plugin_dir / "plugin.json").is_file():
+            raise OSError(f"Plugin folder not found: {plugin_dir}")
+        with tempfile.TemporaryDirectory(prefix="jedi-lsfg-update-") as staging:
+            archive = Path(staging) / "plugin.zip"
+            self._download(release["url"], archive)
+            if self._sha256(archive) != release["sha256"]:
+                raise OSError("Downloaded plugin ZIP failed checksum verification")
+            files: Dict[Path, bytes] = {}
+            with zipfile.ZipFile(archive) as zf:
+                for info in zf.infolist():
+                    parts = Path(info.filename).parts[1:]  # drop the ZIP's top folder
+                    if info.is_dir() or not parts:
+                        continue
+                    if ".." in parts or Path(info.filename).is_absolute():
+                        raise OSError(f"Unsafe path in the plugin ZIP: {info.filename}")
+                    data = zf.read(info)
+                    target = plugin_dir.joinpath(*parts)
+                    if target.is_file() and self._sha256(target) == hashlib.sha256(data).hexdigest():
+                        continue
+                    files[target] = data
+        blocked = [
+            str(path.relative_to(plugin_dir)) for path in files
+            if not os.access(path if path.exists() else self._existing_parent(path), os.W_OK)
+        ]
+        if blocked:
+            raise OSError(f"Cannot write {', '.join(blocked)}. Install the ZIP from Decky's settings instead.")
+        package = json.loads(files.get(plugin_dir / "package.json") or (plugin_dir / "package.json").read_bytes())
+        self._fetch_remote_binaries(plugin_dir / "bin", package.get("remote_binary") or [])
+        # Python last, main.py after its package: if anything fails first, the old plugin still runs.
+        for path in sorted(files, key=lambda item: (item.suffix == ".py", item == plugin_dir / "main.py")):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(files[path])
+        return [str(path.relative_to(plugin_dir)) for path in files]
+
+    @staticmethod
+    def _existing_parent(path: Path) -> Path:
+        while not path.exists():
+            path = path.parent
+        return path
+
+    def _fetch_remote_binaries(self, bin_dir: Path, binaries: list) -> None:
+        """What Decky's installer does after unzipping: every remote binary in bin/, checked against its SHA-256."""
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        for binary in binaries:
+            target = bin_dir / binary["name"]
+            if target.is_file() and self._sha256(target) == binary["sha256hash"]:
+                continue
+            partial = target.with_name(target.name + ".part")
+            try:
+                self._download(binary["url"], partial)
+                if self._sha256(partial) != binary["sha256hash"]:
+                    raise OSError(f"{binary['name']} failed checksum verification")
+                os.replace(partial, target)
+            finally:
+                partial.unlink(missing_ok=True)
+
+    def _download(self, url: str, destination: Path) -> None:
+        env = self._host_environment()
+        curl = shutil.which("curl", path=env["PATH"])
+        if curl is None:
+            raise FileNotFoundError("curl is required to download the update")
+        result = subprocess.run(
+            [curl, "-fsSL", "--retry", "3", "-o", str(destination), url],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=self.DOWNLOAD_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise OSError(result.stderr.strip() or f"Could not download {url}")
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()

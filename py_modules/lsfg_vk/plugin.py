@@ -188,6 +188,10 @@ class Plugin:
         # The GitHub request must not block Decky's event loop.
         return await asyncio.to_thread(self.update_service.status, bool(force))
 
+    async def install_plugin_update(self):
+        # Downloads the release and writes it over the plugin; the frontend then asks Decky to reload it.
+        return await asyncio.to_thread(self.update_service.install)
+
     async def _main(self):
         repair = self.wrapper_service.repair()
         if not repair.get("success"):

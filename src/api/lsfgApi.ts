@@ -96,6 +96,11 @@ export interface PluginUpdateStatus extends ApiResult {
   release_url?: string;
 }
 
+export interface PluginUpdateInstallResult extends ApiResult {
+  plugin_name?: string;
+  version?: string;
+}
+
 export interface GlobalConfigResult extends ApiResult {
   global_config?: GlobalConfig;
 }
@@ -166,6 +171,7 @@ export const installLsfgVk = callable<[], InstallationResult>("install_lsfg_vk")
 export const uninstallLsfgVk = callable<[], InstallationResult>("uninstall_lsfg_vk");
 export const checkLsfgVkInstalled = callable<[], InstallationStatus>("check_lsfg_vk_installed");
 export const getPluginUpdateStatus = callable<[boolean], PluginUpdateStatus>("get_plugin_update_status");
+export const installPluginUpdateRelease = callable<[], PluginUpdateInstallResult>("install_plugin_update");
 export const getLosslessScalingBranchStatus = callable<[], SteamBranchStatus>("get_lossless_scaling_branch_status");
 export const getConfigFileContent = callable<[], FileContentResult>("get_config_file_content");
 export const getFlatpakApps = callable<[], FlatpakAppsResult>("get_flatpak_apps");

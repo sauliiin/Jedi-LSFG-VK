@@ -6,6 +6,7 @@ import { installPluginUpdate } from "../utils/pluginUpdate";
 export function PluginUpdateSection() {
   const [status, setStatus] = useState<PluginUpdateStatus | null>(null);
   const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState("");
 
   const refresh = useCallback(async (force: boolean) => {
@@ -25,11 +26,14 @@ export function PluginUpdateSection() {
 
   const update = async () => {
     if (!status) return;
-    setMessage("Confirm in Decky's prompt. The plugin reloads after the update.");
+    setUpdating(true);
+    setMessage(`Downloading v${status.latest_version}...`);
     try {
-      await installPluginUpdate(status);
+      setMessage(`v${await installPluginUpdate(status)} installed. Reloading the plugin...`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -50,8 +54,8 @@ export function PluginUpdateSection() {
       </PanelSectionRow>
       {status?.update_available && (
         <PanelSectionRow>
-          <ButtonItem layout="below" onClick={() => void update()}>
-            {`Update to v${status.latest_version}${size}`}
+          <ButtonItem layout="below" onClick={() => void update()} disabled={updating}>
+            {updating ? "Updating..." : `Update to v${status.latest_version}${size}`}
           </ButtonItem>
         </PanelSectionRow>
       )}
@@ -61,7 +65,7 @@ export function PluginUpdateSection() {
         </PanelSectionRow>
       )}
       <PanelSectionRow>
-        <ButtonItem layout="below" onClick={() => void refresh(true)} disabled={checking}>
+        <ButtonItem layout="below" onClick={() => void refresh(true)} disabled={checking || updating}>
           {checking ? "Checking..." : "Check for updates"}
         </ButtonItem>
       </PanelSectionRow>
