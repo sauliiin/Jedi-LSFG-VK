@@ -96,6 +96,35 @@ class InstallationConfigTests(unittest.TestCase):
         self.assertEqual(data["profiles"]["app:123"]["target_fps"], 90)
         self.service.runtime_service.validate_config_content.assert_called_once()
 
+    def test_check_installation_rewrites_profiles_saved_with_an_older_policy(self):
+        self.service.runtime_service.check_lossless_scaling.return_value = {
+            "installed": False,
+            "status": "Lossless Scaling's Lossless.dll was not found",
+        }
+        self._mark_installed()
+        self.service.config_file_path.write_text(
+            'version = 2\n\n[global]\nallow_fp16 = true\n\n[[profile]]\n'
+            'name = "app:123"\nadaptive = true\ntarget_fps = 30\nbase_fps_cap = 15\n',
+            encoding="utf-8",
+        )
+
+        self.service.check_installation()
+
+        content = self.service.config_file_path.read_text(encoding="utf-8")
+        self.assertIn("target_fps = 60\n", content)
+        self.assertIn("base_fps_cap = 0\n", content)
+        self.service.runtime_service.validate_config_content.assert_called_once()
+
+    def test_refresh_leaves_a_current_config_untouched(self):
+        self._write_config()
+        self._mark_installed()
+        before = self.service.config_file_path.stat().st_mtime_ns
+
+        self.service.refresh_config()
+
+        self.assertEqual(self.service.config_file_path.stat().st_mtime_ns, before)
+        self.service.runtime_service.validate_config_content.assert_not_called()
+
     def test_check_installation_does_not_write_dll_path_when_dll_is_missing(self):
         self.service.runtime_service.check_lossless_scaling.return_value = {
             "installed": False,

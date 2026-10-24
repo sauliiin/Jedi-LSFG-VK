@@ -15,7 +15,7 @@ interface TargetFpsControlProps {
 const SAVE_DEBOUNCE_MS = 300;
 const NOTCH_STEP = 30;
 const NOTCH_COUNT = (TARGET_FPS_MAX - TARGET_FPS_MIN) / NOTCH_STEP + 1;
-const NOTCH_LABELS = [30, 60, 90, 120].map((value) => ({
+const NOTCH_LABELS = [60, 90, 120].map((value) => ({
   notchIndex: (value - TARGET_FPS_MIN) / NOTCH_STEP,
   label: String(value),
   value,

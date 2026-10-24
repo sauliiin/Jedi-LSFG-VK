@@ -12,7 +12,7 @@ sys.modules.setdefault(
 )
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "py_modules"))
 
-from lsfg_vk.config_schema import ConfigurationManager, adaptive_settings, base_fps_cap
+from lsfg_vk.config_schema import ConfigurationManager, adaptive_settings
 from lsfg_vk.configuration import ConfigurationService
 
 
@@ -53,19 +53,20 @@ swapchain_image_count_compatibility = true
         self.assertFalse(profile["performance_mode"])
         self.assertTrue(profile["preserve_swapchain_image_count"])
 
-    def test_target_fps_derives_half_base_cap_and_4x_fractional_policy(self):
+    def test_target_fps_derives_uncapped_4x_fractional_policy(self):
         settings = adaptive_settings(90)
 
         self.assertTrue(settings["adaptive"])
         self.assertEqual(settings["target_fps"], 90)
-        self.assertEqual(settings["base_fps_cap"], 45)
+        # An uncapped base lets native FPS above the target through.
+        self.assertEqual(settings["base_fps_cap"], 0)
+        self.assertEqual(settings["adaptive_fractional_real_frame_priority"], "auto")
         self.assertEqual(settings["adaptive_max_multiplier"], 4)
         self.assertFalse(settings["adaptive_auto_base_fps_cap"])
         self.assertFalse(settings["adaptive_stable_cadence"])
-        self.assertFalse(settings["dynamic_cadence_recovery"])
-
-    def test_odd_target_rounds_base_cap_down(self):
-        self.assertEqual(base_fps_cap(45), 22)
+        self.assertTrue(settings["dynamic_cadence_recovery"])
+        self.assertEqual(settings["dynamic_cadence_probe_interval_seconds"], 3.0)
+        self.assertEqual(settings["gpu_headroom_percent"], 0)
 
     def test_rendered_profile_contains_derived_adaptive_policy(self):
         rendered = ConfigurationManager.generate_toml_content_multi_profile({
@@ -74,7 +75,8 @@ swapchain_image_count_compatibility = true
         })
 
         self.assertIn("target_fps = 60\n", rendered)
-        self.assertIn("base_fps_cap = 30\n", rendered)
+        self.assertIn("base_fps_cap = 0\n", rendered)
+        self.assertIn("dynamic_cadence_probe_interval_seconds = 3.0\n", rendered)
         self.assertIn("adaptive_max_multiplier = 4\n", rendered)
         self.assertNotIn("multiplier = 2", rendered.replace("adaptive_max_multiplier", ""))
 
@@ -85,8 +87,15 @@ swapchain_image_count_compatibility = true
 
         self.assertEqual(parsed["profiles"]["app:1"]["target_fps"], 120)
 
+    def test_saved_target_below_minimum_is_raised_on_read(self):
+        parsed = ConfigurationManager.parse_toml_content_multi_profile(
+            'version = 2\n\n[[profile]]\nname = "app:1"\ntarget_fps = 30\n'
+        )
+
+        self.assertEqual(parsed["profiles"]["app:1"]["target_fps"], 60)
+
     def test_target_fps_outside_slider_range_is_rejected(self):
-        for value in (29, 121, True):
+        for value in (30, 59, 121, True):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 ConfigurationManager.validate_config({"target_fps": value})
 

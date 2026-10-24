@@ -12,14 +12,15 @@ Você escolhe quantos FPS quer ver na tela. O plugin cuida do resto.
 
 Em vez de escolher um multiplicador fixo (2x, 3x, 4x), você define o **FPS alvo** de cada jogo. A partir disso, o plugin:
 
-1. **Limita o jogo à metade do alvo.** Com alvo de 60 FPS, o jogo roda no máximo a 30 FPS reais. Isso deixa a GPU com folga para gerar os frames, e o jogo gasta menos bateria em cenas leves.
-2. **Gera só os frames que faltam.** Se o jogo segura os 30 FPS, a geração fica em 2x. Se cai para 26 FPS, sobe para cerca de 2,3x. A 20 FPS vai a 3x.
+1. **Nunca limita os FPS reais.** O alvo é o mínimo que você quer ver, não um teto. Se o jogo roda a 65 FPS com alvo de 60, você vê os 65 FPS reais, sem frames gerados.
+2. **Gera só os frames que faltam.** Se o jogo cai para 50 FPS, a geração completa os 10 que faltam (cerca de 1,2x). A 30 FPS fica em 2x, a 20 FPS vai a 3x.
 3. **Sobe e desce aos poucos.** O multiplicador muda em degraus pequenos (2,1x, 2,2x, 2,3x…) em vez de pular de 2x para 3x, o que deixa a transição suave.
-4. **Para em 4x.** Acima disso a latência e os artefatos ficam ruins, então a geração nunca passa de 4x.
+4. **Volta para os frames reais quando o jogo melhora.** A cada 3 segundos o plugin confere se o jogo já consegue rodar mais rápido sozinho. Se consegue, a geração diminui ou para.
+5. **Para em 4x.** Acima disso a latência e os artefatos ficam ruins, então a geração nunca passa de 4x.
 
-A base de metade do alvo e o limite de 4x são automáticos e não aparecem na tela. A única coisa que você ajusta é o FPS alvo, e a mudança vale na hora, com o jogo rodando.
+Essas regras são automáticas e não aparecem na tela. A única coisa que você ajusta é o FPS alvo, e a mudança vale na hora, com o jogo rodando.
 
-O alvo vai de 30 a 120 FPS. Use um valor igual ou menor que a taxa de atualização da tela (60 Hz no Steam Deck LCD, até 90 Hz no OLED): frames acima disso não aparecem e só sobrecarregam a fila de apresentação.
+O alvo vai de 60 a 120 FPS. Use um valor igual ou menor que a taxa de atualização da tela (60 Hz no Steam Deck LCD, até 90 Hz no OLED): frames acima disso não aparecem e só sobrecarregam a fila de apresentação. Perfis salvos com alvo abaixo de 60 por versões anteriores passam para 60 quando o plugin carrega.
 
 ## Leve durante o jogo
 
@@ -42,7 +43,7 @@ O que gera os frames é o [MAKO Renderer](https://github.com/eugeniosegala/MAKO)
 
 1. Na aba **Steam** ou **Non-Steam**, escolha um jogo.
 2. Toque em **Enable for next launch**. O plugin adiciona `~/.jedi-lsfg %command%` às opções de inicialização do jogo.
-3. Ajuste o **Target FPS** (30 a 120).
+3. Ajuste o **Target FPS** (60 a 120).
 
 Apps Flatpak são ativados na aba **Flatpak**. Na primeira vez, o plugin baixa a extensão Flatpak do renderizador (cerca de 120 MB).
 
@@ -71,4 +72,4 @@ Apps Flatpak são ativados na aba **Flatpak**. Na primeira vez, o plugin baixa a
 
 ## English summary
 
-Jedi LSFG-VK is a Decky Loader plugin with a single control: the **target FPS**. The game is capped at half the target, and frame generation fills the gap in small fractional steps (2.1x, 2.2x, 2.3x…) up to 4x. The base cap and the 4x ceiling are automatic and hidden. It reads Lossless.dll from Lossless Scaling (default or lsfg-vk Steam branch) and uses the pinned stable MAKO Renderer 4.6.0. Install the ZIP from Releases through **Developer → Install Plugin from Zip**, then select **Install MAKO Renderer** in the plugin.
+Jedi LSFG-VK is a Decky Loader plugin with a single control: the **target FPS** (60–120). The target is a floor, not a cap: a game that runs above it is shown at its native FPS, and frame generation only fills the gap below it, in small fractional steps up to 4x. Every 3 seconds MAKO checks whether the game can run faster on its own and reduces generation when it can. These rules are automatic and hidden. It reads Lossless.dll from Lossless Scaling (default or lsfg-vk Steam branch) and uses the pinned stable MAKO Renderer 4.6.0. Install the ZIP from Releases through **Developer → Install Plugin from Zip**, then select **Install MAKO Renderer** in the plugin.

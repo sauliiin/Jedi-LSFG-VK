@@ -185,6 +185,8 @@ class Plugin:
         repair = self.wrapper_service.repair()
         if not repair.get("success"):
             decky.logger.error(f"Could not repair launch wrapper: {repair.get('error')}")
+        # Runs before any game starts, so the next launch reads current profiles.
+        self.installation_service.refresh_config()
         decky.logger.info("Jedi LSFG-VK plugin loaded")
 
     async def _unload(self):

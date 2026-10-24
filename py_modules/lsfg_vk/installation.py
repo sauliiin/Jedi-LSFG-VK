@@ -185,31 +185,34 @@ class InstallationService(BaseService):
             return True
         return False
 
-    def _repair_dll_path(self) -> None:
-        if not self.config_file_path.is_file():
+    def refresh_config(self) -> None:
+        """Rewrite conf.toml when the derived policy or Lossless.dll path changed.
+
+        MAKO reads the file directly, so a profile saved by an older version
+        keeps its old policy (and any target now below the minimum) until it
+        is rendered again.
+        """
+        if not self._renderer_installed() or not self.config_file_path.is_file():
             return
         try:
+            current = self.config_file_path.read_text(encoding="utf-8")
+            profile_data = ConfigurationManager.parse_toml_content_multi_profile(current)
             dll_path = self.steam_service.find_lossless_dll()
-            if not dll_path:
-                return
-            profile_data = ConfigurationManager.parse_toml_content_multi_profile(
-                self.config_file_path.read_text(encoding="utf-8")
-            )
-            if profile_data["global_config"].get("dll") == dll_path:
-                return
-            profile_data["global_config"]["dll"] = dll_path
+            if dll_path:
+                profile_data["global_config"]["dll"] = dll_path
             content = ConfigurationManager.generate_toml_content_multi_profile(profile_data)
+            if content == current:
+                return
             self.runtime_service.validate_config_content(content)
             self._write_file(self.config_file_path, content, 0o644)
-            self.log.info(f"Repaired Lossless.dll path: {dll_path}")
+            self.log.info("Refreshed MAKO configuration")
         except Exception as error:
-            self.log.warning(f"Could not repair Lossless.dll path: {error}")
+            self.log.warning(f"Could not refresh MAKO configuration: {error}")
 
     def check_installation(self) -> InstallationCheckResponse:
         try:
             installed = self._renderer_installed() and self.config_file_path.is_file()
-            if installed:
-                self._repair_dll_path()
+            self.refresh_config()
             lossless_scaling = self.runtime_service.check_lossless_scaling()
             return {
                 "installed": installed,

@@ -4,11 +4,11 @@ The plugin exposes a single frame generation control, the target FPS. Every
 other Adaptive Frame Generation setting is derived from it so profiles always
 use the same policy:
 
-* the real (base) framerate is capped at half of the target, so the game
-  renders at most target/2 frames and the GPU keeps headroom for generation;
+* the real (base) framerate is never capped, so a game that can run at or
+  above the target is shown at its native FPS without generated frames;
 * Fractional Adaptive fills the gap to the target with a changing mix of real
   and generated frames, so the effective multiplier moves smoothly through
-  2.1x, 2.2x, 2.3x... instead of jumping between integer rungs;
+  1.1x, 1.2x... 2.1x, 2.2x... instead of jumping between integer rungs;
 * generation never exceeds 4x.
 """
 
@@ -30,7 +30,9 @@ class UnsupportedConfigurationVersion(ValueError):
         super().__init__("unsupported configuration version")
 
 
-TARGET_FPS_MIN = 30
+# Below 60 the generated output is too sparse to look smooth, and a low
+# target is easy to leave behind by accident.
+TARGET_FPS_MIN = 60
 # In Adaptive mode MAKO does not drop outputs the display cannot show, so a
 # target above the panel only adds FIFO backpressure. 120 covers handheld
 # panels and common docked displays.
@@ -48,13 +50,10 @@ PROFILE_DEFAULTS: Dict[str, Any] = {
 GLOBAL_DEFAULTS: Dict[str, Any] = {"dll": "", "no_fp16": False}
 
 
-def base_fps_cap(target_fps: int) -> int:
-    """Real-frame cap for a target: half of it, rounded down.
-
-    Rounding down keeps 2x generation at or below the target, so a game that
-    reaches its cap never forces Adaptive below its 2x floor.
-    """
-    return target_fps // 2
+# Generated frames hold the game behind FIFO backpressure, so a scene that gets
+# lighter is invisible to the scheduler. Recovery samples native cadence at the
+# slowest supported interval to find it without probing constantly.
+DYNAMIC_CADENCE_PROBE_INTERVAL_SECONDS = 3.0
 
 
 def adaptive_settings(target_fps: int) -> Dict[str, Any]:
@@ -64,18 +63,21 @@ def adaptive_settings(target_fps: int) -> Dict[str, Any]:
         "frame_generation_enabled": True,
         "adaptive": True,
         "target_fps": target_fps,
-        "base_fps_cap": base_fps_cap(target_fps),
+        # With no real-frame cap, Fractional Automatic lets sustained native
+        # FPS above the target through instead of replacing it with
+        # generated frames.
+        "base_fps_cap": 0,
         "adaptive_max_multiplier": ADAPTIVE_MAX_MULTIPLIER,
-        # Off selects Fractional Adaptive; the manual base cap above provides
-        # the half-target base without Steady's integer-only rungs.
+        # Off selects Fractional Adaptive; Steady would cap the base at half
+        # the target and only use integer rungs.
         "adaptive_auto_base_fps_cap": False,
         "adaptive_fractional_real_frame_priority": "auto",
         # Smooth Cadence can hold an integer multiplier and documents extra
         # input lag; the fractional ramp is the requested behaviour.
         "adaptive_stable_cadence": False,
         "adaptive_target_refresh_rate": False,
-        # Cadence probes temporarily drop generated frames and can hitch.
-        "dynamic_cadence_recovery": False,
+        "dynamic_cadence_recovery": True,
+        "dynamic_cadence_probe_interval_seconds": DYNAMIC_CADENCE_PROBE_INTERVAL_SECONDS,
         "gpu_headroom_percent": 0,
     }
 
